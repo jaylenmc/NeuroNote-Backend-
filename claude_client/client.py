@@ -11,9 +11,10 @@ from .services import clean_claude_response
 from rest_framework.decorators import permission_classes, api_view
 import json
 import tiktoken
+import os
 
 client = anthropic.Anthropic(
-    api_key='REDACTED'
+    api_key=os.environ.get("ANTHROPIC_KEY")
 ) 
 
 def thinker_ai(prompt: str, user: object):
