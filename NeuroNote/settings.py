@@ -27,8 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DEBUG = True
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 # Application definition
 
@@ -161,7 +160,13 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Add this line for development - Django will look for static files in these directories
+STATICFILES_DIRS = [
+    BASE_DIR / "static",
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -194,10 +199,8 @@ env = environ.Env(
     DEBUG=(bool, False)
 )
 
+# Try to read from .env file, but don't fail if it doesn't exist
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
-
-DEBUG = env('DEBUG')
 SECRET_KEY = env('SECRET_KEY')
-
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
