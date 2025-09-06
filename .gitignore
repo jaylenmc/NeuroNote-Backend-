@@ -38,6 +38,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+temp-backend-venv/
 
 # Venv
 NeuroNoteVenv/
