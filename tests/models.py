@@ -16,7 +16,7 @@ class Question(models.Model):
         ('WR', 'Written'),
     ]
 
-    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, default='No quiz provided')
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, null=True, blank=True)
     question_input = models.TextField(null=True)
     question_type = models.CharField(max_length=2, choices=QUESTION_TYPE_CHOICES, default='MC')
 

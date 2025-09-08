@@ -1,3 +1,61 @@
-from django.test import TestCase
+from rest_framework.test import APITestCase
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework import status
+from .models import Folder
 
-# Create your tests here.
+class FoldersTestCase(APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        User = get_user_model()
+        cls.user = User.objects.create(email="test@gmail.com")
+    
+    def setUp(self):
+        self.client.force_authenticate(self.user)
+
+    def test_folders_get(self):
+        print('================ Get ================')
+        Folder.objects.create(name="Computer Science", user=self.user)
+        url = reverse("folder-get-post")
+        response = self.client.get(url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}"
+        )
+        print(response.data, "\n")
+
+    def test_folders_post(self):
+        print('================ Post ================')
+        url = reverse("folder-get-post")
+        data = {
+            "name": "Religion Class"
+        }
+        response = self.client.post(url, data=data)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            msg=f"Status code error: {response.data}"
+        )
+
+        print(response.data, "\n")
+
+    def test_folder_del(self):
+        print('================ Delete ================')
+        self.folder = Folder.objects.create(name="Gym Class", user=self.user)
+        url = reverse("folder-del", args=[self.folder.pk])
+        response = self.client.delete(url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}"
+        )
+        self.assertFalse(
+            Folder.objects.filter(id=self.folder.pk).exists(),
+            msg=f"Folder didnt delete: {response.data}"
+        )
+        print(response.data, "\n")

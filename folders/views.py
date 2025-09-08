@@ -42,7 +42,7 @@ class FolderView(APIView):
         folder = Folder.objects.create(name=name, user=request.user)
         serialized = FolderSerializer(folder)
 
-        return Response({'folder': serialized.data}, status=status.HTTP_200_OK)
+        return Response({'folder': serialized.data}, status=status.HTTP_201_CREATED)
     
     def delete(self, request, id):
         folder = Folder.objects.filter(user=request.user, id=id).first()

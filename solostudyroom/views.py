@@ -7,6 +7,10 @@ from rest_framework import status
 from resources.models import FileUpload, LinkUpload, ResourceTypes
 from documents.models import Document
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from flashcards.models import Card
 
 class PinnedResourceClass(APIView):
     permission_classes = [IsAuthenticated]
@@ -29,7 +33,6 @@ class PinnedResourceClass(APIView):
         return Response({"Error": request_data.errors}, status=status.HTTP_400_BAD_REQUEST)
     
     def delete(self, request, obj_id):
-        # Add resource_type error handling
         resource_type = request.query_params.get('resource_type')
 
         if resource_type.lower() not in ResourceTypes.values and resource_type.lower() != Document.ResourceType.DOCUMENT_TYPE:
@@ -67,3 +70,16 @@ class PinnedResourceClass(APIView):
             
             document_resource.document.remove(obj_id)
             return Response({"Message": "Document successfully removed"}, status=status.HTTP_200_OK)
+        
+@api_view(["GET"])
+def studyroom_stats(request):
+    user_timezone = request.query_params.get("user_timezone")
+    end_of_day = datetime.now(ZoneInfo(user_timezone)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    start_of_day = datetime.now(ZoneInfo(user_timezone)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    cards = Card.objects.filter(card_deck__user=request.user, last_review_date__range=(start_of_day, end_of_day))
+    stats = {
+        "total_cards_studied_today": cards.count(),
+    }
+
+    return Response(stats, status=status.HTTP_200_OK)

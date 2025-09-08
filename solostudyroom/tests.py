@@ -10,6 +10,10 @@ from django.urls import reverse
 from rest_framework import status
 import tempfile
 from django.test import override_settings
+from flashcards.models import Card, Deck
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+from django.utils import timezone
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class PinnedResourceTestCase(APITestCase):
@@ -18,55 +22,99 @@ class PinnedResourceTestCase(APITestCase):
         super().setUpClass()
         User = get_user_model()
         cls.user = User.objects.create(email="test@gmail.com")
-    
-    def setUp(self):
+
+        cls.deck = Deck.objects.bulk_create([
+            Deck(
+                user=cls.user,
+                title='Test Deck',
+                subject='Test Subject'
+            ),
+            Deck(
+                user=cls.user,
+                title='Test Deck2',
+                subject='Test Subject2'
+            )
+        ])
+
+        cls.cards = Card.objects.bulk_create([
+            Card(
+                question='How many days are in a week',
+                answer='7',
+                card_deck=cls.deck[1],
+                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+                last_review_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+            ),
+            Card(
+                question='What is cultural studies?',
+                answer='The study of everyday life',
+                card_deck=cls.deck[1],
+                scheduled_date=(timezone.now() + timedelta(days=2)).isoformat(),
+                last_review_date=(timezone.now() + timedelta(days=2)).isoformat(),
+            ),
+            Card(
+                question='How many people are in the world?',
+                answer='Billions',
+                card_deck=cls.deck[0],
+                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+                last_review_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+            ),
+            Card(
+                question='How do you make pizza?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+                last_review_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+            ),
+        ])
+
         file = SimpleUploadedFile(
             name="Calc Notes.pdf", 
             content=b"Here are the notes", 
             content_type="content/pdf"
         )
 
-        self.folder = Folder.objects.create(
+        cls.folder = Folder.objects.create(
             name="Comp Sci", 
-            user=self.user
+            user=cls.user
         )
 
-        self.document = Document.objects.create(
+        cls.document = Document.objects.create(
             title="hello world", 
             notes="Pyhton is a coding language", 
-            folder=self.folder, 
+            folder=cls.folder, 
             resource_type="Document"
         )
 
-        self.link = LinkUpload.objects.create(
-            user=self.user, 
+        cls.link = LinkUpload.objects.create(
+            user=cls.user, 
             link="https://www.youtube.com/watch?v=-W89X9GsKyE", 
             resource_type="Link",
             title="Cultural Studies Lecture"
         )
 
         link = LinkUpload.objects.create(
-            user=self.user, 
+            user=cls.user, 
             link="https://www.youtube.com/watch?v=-W89X9GsyE", 
             resource_type="Link",
             title="Science lab lecture"
         )
         
-        self.file = FileUpload.objects.create(
-            user=self.user, 
+        cls.file = FileUpload.objects.create(
+            user=cls.user, 
             file_name="Hey Notes", 
             resource_type="PDF", 
             file_upload=file
         )
 
-        self.pinned_resources = PinnedResourcesDashboard.objects.create(
-            user=self.user, 
+        cls.pinned_resources = PinnedResourcesDashboard.objects.create(
+            user=cls.user, 
         )
-        self.pinned_resources.document.add(self.document)
-        self.pinned_resources.link.add(self.link)
-        self.pinned_resources.link.add(link)
-        self.pinned_resources.file.add(self.file)
-
+        cls.pinned_resources.document.add(cls.document)
+        cls.pinned_resources.link.add(cls.link)
+        cls.pinned_resources.link.add(link)
+        cls.pinned_resources.file.add(cls.file)
+    
+    def setUp(self):
         self.client.force_authenticate(user=self.user)
 
     def test_get_pinned_resources(self):
@@ -184,3 +232,15 @@ class PinnedResourceTestCase(APITestCase):
                     msg=f"Pinned Resource didn't delete: {response.data}"
                 )
                 print(response.data)
+
+    def test_studyroom_stats(self):
+        url = reverse('study-stats')
+        url_params = f"{url}?user_timezone=America/Chicago"
+        response = self.client.get(url_params)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}"
+        )
+        print(response.data)

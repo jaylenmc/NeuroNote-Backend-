@@ -4,6 +4,10 @@ from .serializers import StudyRoomSerializer
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
+from flashcards.models import Card
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 class StudyRoomView(APIView):
     permission_classes = [IsAuthenticated]
@@ -58,3 +62,16 @@ class StudyRoomView(APIView):
         room.delete()
 
         return Response({"Message": "Room deleted successfully"}, status=status.HTTP_200_OK)
+    
+@api_view(["GET"])
+def studyroom_stats(request):
+    user_timezone = request.query_params.get("user_timezone")
+    end_of_day = datetime.now(ZoneInfo(user_timezone)).replace(hour=23, minute=59, second=59, microsecond=999999)
+    start_of_day = datetime.now(ZoneInfo(user_timezone)).replace(hour=0, minute=0, second=0, microsecond=0)
+
+    cards = Card.objects.filter(card_deck__user=request.user, last_review_date__range=(start_of_day, end_of_day))
+    stats = {
+        "total_cards_studied_today": cards.count(),
+    }
+
+    return Response(stats, status=status.HTTP_200_OK)

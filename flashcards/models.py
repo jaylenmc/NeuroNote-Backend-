@@ -15,7 +15,6 @@ class Deck(models.Model):
     num_of_cards = models.IntegerField(default=0)
 
     user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, null=True)
-
     
 class Card(models.Model):
     question = models.TextField()
@@ -91,8 +90,9 @@ class Card(models.Model):
 
         # 7. Save + log
         reward_xp(self.card_deck.user, rating)
-        ReviewLog.objects.create(card=self)
         self.save()
 
 class ReviewLog(models.Model):
-    card = models.ForeignKey(Card, on_delete=models.CASCADE)
+    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, related_name="user_review_log")
+    cards = models.ManyToManyField(Card, related_name="reviewed_cards")
+    session_time = models.DurationField()
