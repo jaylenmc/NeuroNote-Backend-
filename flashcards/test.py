@@ -1,7 +1,7 @@
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from rest_framework import status
-from .models import Card, Deck
+from .models import Card, Deck, ReviewLog
 from authentication.models import AuthUser
 from django.utils import timezone
 from datetime import timedelta, datetime
@@ -26,29 +26,34 @@ class CardTestCase(APITestCase):
                 subject='Test Subject2'
             )
         ])
+        time = timezone.now()
 
         self.cards = Card.objects.bulk_create([
             Card(
                 question='How many days are in a week',
                 answer='7',
                 card_deck=self.deck[1],
-                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat()
+                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+                last_review_date=time.isoformat()
             ),
             Card(
                 question='What is cultural studies?',
                 answer='The study of everyday life',
                 card_deck=self.deck[1],
-                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat()
+                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+                last_review_date=time.isoformat()
             ),
             Card(
                 question='How many people are in the world?',
                 answer='Billions',
-                card_deck=self.deck[0]
+                card_deck=self.deck[0],
+                last_review_date=time.isoformat()
             ),
             Card(
                 question='How do you make pizza?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0]
+                card_deck=self.deck[0],
+                last_review_date=time.isoformat()
             ),
         ])
 
@@ -139,15 +144,52 @@ class CardTestCase(APITestCase):
             print('--------------------------------')
             print(f'After update 2: {card.scheduled_date}')
             print(f'Stability: {card.stability}')
-
+   
     def test_review_cards(self):
+        print('====================== Review Cards ======================')
         url = reverse('review-card')
-        data = {
-            'quality': 5,
-            'deck_id': self.deck[1].pk,
-            'card_id': self.cards[0].pk
+        review_session = {
+            'session_time': "00:13:20",
+            'review': [{
+                'card_id': card.pk,
+                'deck_id': card.card_deck.pk,
+                'quality': 0
+            } for card in self.cards]
         }
+        response = self.client.put(url, review_session, format='json')
+        self.assertEqual(
+            response.status_code, 
+            status.HTTP_200_OK, 
+            f'Status code error: {response.data}'
+            )
+        
+        cardss = Card.objects.get(id=self.cards[-1].pk)
+        cardss.last_review_date = timezone.now().isoformat()
+        self.assertTrue(
+            all([card.last_review_date != Card.objects.get(id=card.pk).last_review_date for card in self.cards]),
+            msg=f"Cards didn't successfully update: {response.data}"
+        )
 
-        response = self.client.put(url, data)
-        self.assertEqual(response.status_code, status.HTTP_200_OK, f'Status code error: {response.data}')
+        reviewed_cards = ReviewLog.objects.get(user=self.user).cards
+        self.assertTrue(
+            reviewed_cards.count() > 0,
+            msg=f"Cards didn't save in review log: {response.data}"
+        )
+
         print(response.data)
+
+bev = {
+    "session_time": "00:14:24",
+    "review": [
+        {
+            "card_id": 2,
+            "deck_id": 4,
+            "quality": 5
+        },
+        {
+            "card_id": 1,
+            "deck_id": 6,
+            "quality": 2
+        }
+    ]
+}

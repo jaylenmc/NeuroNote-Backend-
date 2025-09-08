@@ -12,6 +12,8 @@ from django.utils import timezone
 from .services import check_past_week_cards, num_of_cards
 from django.db.models import Q
 from datetime import timedelta
+from .serializers import ReviewSessionInput, ReviewItemSerializer
+from datetime import timedelta
 
 class DeckCollection(APIView):
     permission_classes = [IsAuthenticated]
@@ -154,34 +156,76 @@ class CardCollection(APIView):
 
         return Response({"Message": "Successfully deleted"}, status=status.HTTP_200_OK)
     
-
+bev = {
+    "session_time": "13:24",
+    "review": [
+        {
+            "card_id": 2,
+            "deck_id": 4,
+            "quality": 5
+        },
+        {
+            "card_id": 1,
+            "deck_id": 6,
+            "quality": 2
+        }
+    ]
+}
         
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def review_card(request):
-    deck_id = request.data.get('deck_id')
-    card_id = request.data.get('card_id')
+    # deck_id = request.data.get('deck_id')
+    # card_id = request.data.get('card_id')
 
-    deck = Deck.objects.filter(user=request.user, id=deck_id).first()
-    if not deck:
-        return Response({"Message": "Deck not found"}, status=status.HTTP_404_NOT_FOUND)
+    # deck = Deck.objects.filter(user=request.user, id=deck_id).first()
+    # if not deck:
+    #     return Response({"Message": "Deck not found"}, status=status.HTTP_404_NOT_FOUND)
     
-    card = Card.objects.filter(card_deck=deck, id=card_id).first()
-    if not card:
-        return Response({"Message": "Card not found"}, status=status.HTTP_404_NOT_FOUND)
+    # card = Card.objects.filter(card_deck=deck, id=card_id).first()
+    # if not card:
+    #     return Response({"Message": "Card not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    try:
-        quality = int(request.data.get('quality')) 
-    except (TypeError, ValueError):
-        return Response({"Message": "Invalid quality rating"}, status=status.HTTP_400_BAD_REQUEST)
+    # try:
+    #     quality = int(request.data.get('quality')) 
+    # except (TypeError, ValueError):
+    #     return Response({"Message": "Invalid quality rating"}, status=status.HTTP_400_BAD_REQUEST)
     
-    card.update_sm21(quality)
-    # Assigning Achievements
-    user, created = UserAchievements.objects.get_or_create(user=request.user)
-    # knowledge_engineer(user=user, deck=deck)
-    memory_architect(user=user, deck=deck)
+    # card.update_sm21(quality)
+    # # Assigning Achievements
+    # user, created = UserAchievements.objects.get_or_create(user=request.user)
+    # # knowledge_engineer(user=user, deck=deck)
+    # memory_architect(user=user, deck=deck)
 
-    return Response({'Message': 'Card reviewed and updated successfully'}, status=status.HTTP_200_OK)
+    # return Response({'Message': 'Card reviewed and updated successfully'}, status=status.HTTP_200_OK)
+    card_input_serializer = ReviewSessionInput(data=request.data, context={"method": request.method})
+    if card_input_serializer.is_valid():
+        validated_data = card_input_serializer.validated_data
+        duration = timedelta(
+            hours=validated_data['session_time'].hour, 
+            minutes=validated_data['session_time'].minute,
+            seconds=validated_data['session_time'].second
+            )
+        review_log = ReviewLog.objects.create(user=request.user, session_time=duration)
+
+        for card_info in validated_data['review']:
+            instance = Card.objects.get(
+                card_deck__user=request.user, 
+                card_deck=card_info["deck_id"],
+                id=card_info["card_id"].id,
+                )
+            
+            card_info['deck_id'] = card_info['deck_id'].id
+            card_info['card_id'] = card_info['card_id'].id
+
+            card_input_serializer = ReviewItemSerializer(instance=instance, data=card_info, partial=True)
+            card_input_serializer.is_valid(raise_exception=True)
+            card_input_serializer.save()
+
+            review_log.cards.add(instance)
+            
+        return Response({"Message": "Cards successfully reviewed"}, status=status.HTTP_200_OK)
+    return Response(card_input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class DueCardsView(APIView):
     permission_classes = [IsAuthenticated]
