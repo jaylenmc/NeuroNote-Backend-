@@ -14,6 +14,7 @@ from flashcards.models import Card, Deck
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from django.utils import timezone
+from flashcards.models import ReviewLog
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class PinnedResourceTestCase(APITestCase):
@@ -234,6 +235,13 @@ class PinnedResourceTestCase(APITestCase):
                 print(response.data)
 
     def test_studyroom_stats(self):
+        duration = timedelta(hours=1, minutes=23, seconds=34)
+        print(f"Hours: {(duration.total_seconds() // 3600)}")
+        print(f"Minutes: {(duration.total_seconds() % 3600) // 60}")
+        print(f"Seconds: {duration.total_seconds()}")
+        review_log = ReviewLog.objects.create(user=self.user, session_time=duration)
+        
+        [review_log.cards.add(card) for card in self.cards]
         url = reverse('study-stats')
         url_params = f"{url}?user_timezone=America/Chicago"
         response = self.client.get(url_params)
