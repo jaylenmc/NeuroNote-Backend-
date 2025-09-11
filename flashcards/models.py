@@ -96,3 +96,4 @@ class ReviewLog(models.Model):
     user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, related_name="user_review_log")
     cards = models.ManyToManyField(Card, related_name="reviewed_cards")
     session_time = models.DurationField()
+    reviewed_at = models.DateTimeField(auto_now_add=True)

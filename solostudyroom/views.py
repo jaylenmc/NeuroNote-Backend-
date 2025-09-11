@@ -11,6 +11,7 @@ from rest_framework.decorators import api_view
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from flashcards.models import Card
+from flashcards.models import ReviewLog
 
 class PinnedResourceClass(APIView):
     permission_classes = [IsAuthenticated]
@@ -78,8 +79,11 @@ def studyroom_stats(request):
     start_of_day = datetime.now(ZoneInfo(user_timezone)).replace(hour=0, minute=0, second=0, microsecond=0)
 
     cards = Card.objects.filter(card_deck__user=request.user, last_review_date__range=(start_of_day, end_of_day))
+    review_log = ReviewLog.objects.filter(user=request.user).values_list("session_time", flat=True)
+    print(f"review log: {review_log}")
     stats = {
         "total_cards_studied_today": cards.count(),
+        
     }
 
     return Response(stats, status=status.HTTP_200_OK)
