@@ -9,31 +9,44 @@ from authentication.models import AuthUser
 from achievements.models import UserAchievements
 from achievements.services import knowledge_engineer, memory_architect, deck_destroyer
 from django.utils import timezone
-from .services import check_past_week_cards, num_of_cards
+from .services import check_past_week_cards, num_of_cards, deck_mastery_progress
 from django.db.models import Q
 from datetime import timedelta
 from .serializers import ReviewSessionInput, ReviewItemSerializer
 from datetime import timedelta
+from django.shortcuts import get_object_or_404
 
 class DeckCollection(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request, deck_id):
+        if deck_id:
+            deck = get_object_or_404(Deck, user=request.user, id=deck_id)
+            num_of_cards(deck)
+            new_deck = deck_mastery_progress(request.user, deck.id)
+
+            serialized = DeckSerializer(new_deck).data
+            return Response(serialized, status=status.HTTP_200_OK)
+
         decks = Deck.objects.filter(user=request.user)
-        for deck in decks:
-            deck.num_of_cards = num_of_cards(deck)
-            deck.save()
+        if decks.exists():
+            updated_decks = []
+            for deck in decks:
+                num_of_cards(deck)
+                new_deck = deck_mastery_progress(request.user, deck.id)
+                updated_decks.append(new_deck)
 
-        user = AuthUser.objects.filter(email=request.user.email).first()
-        serialized = DeckSerializer(decks, many=True)
+            user = AuthUser.objects.filter(email=request.user.email).first()
+            serialized = DeckSerializer(updated_decks, many=True)
 
-        data = {
-            'decks': serialized.data,
-            'xp': user.xp,
-            'level': user.level
-        }
+            data = {
+                'decks': serialized.data,
+                'xp': user.xp,
+                'level': user.level
+            }
 
-        return Response(data, status=status.HTTP_200_OK)
+            return Response(data, status=status.HTTP_200_OK)
+        return Response({"Error": "User doesn't have decks"}, status=status.HTTP_404_NOT_FOUND)
     
     def post(self, request):
         title = request.data.get('title')
@@ -155,22 +168,6 @@ class CardCollection(APIView):
         card.delete()
 
         return Response({"Message": "Successfully deleted"}, status=status.HTTP_200_OK)
-    
-bev = {
-    "session_time": "13:24",
-    "review": [
-        {
-            "card_id": 2,
-            "deck_id": 4,
-            "quality": 5
-        },
-        {
-            "card_id": 1,
-            "deck_id": 6,
-            "quality": 2
-        }
-    ]
-}
         
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])

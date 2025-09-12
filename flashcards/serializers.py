@@ -17,7 +17,7 @@ class ReviewSessionInput(serializers.Serializer):
 class DeckSerializer(serializers.ModelSerializer):
     class Meta:
         model = Deck
-        fields = ['title', 'subject', 'num_of_cards', 'id']
+        fields = ['title', 'subject', 'num_of_cards', 'id', 'mastery_progress']
 
 class CardSerializer(serializers.ModelSerializer):
     class Meta:
