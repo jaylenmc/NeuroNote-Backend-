@@ -171,7 +171,7 @@ class CardTestCase(APITestCase):
             'review': [{
                 'card_id': card.pk,
                 'deck_id': card.card_deck.pk,
-                'quality': 0
+                'quality': 5
             } for card in self.cards]
         }
         response = self.client.put(url, review_session, format='json')

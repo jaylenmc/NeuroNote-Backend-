@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Deck, Card
+from .services import deck_mastery_progress
 
 class ReviewItemSerializer(serializers.Serializer):
     card_id = serializers.PrimaryKeyRelatedField(queryset=Card.objects.all())
@@ -8,6 +9,7 @@ class ReviewItemSerializer(serializers.Serializer):
 
     def update(self, instance, data):
         instance.update_sm21(data['quality'])
+        deck_mastery_progress(self.context['user'], data['deck_id'].id)
         return "Cards successfully reviewed"
 
 class ReviewSessionInput(serializers.Serializer):
