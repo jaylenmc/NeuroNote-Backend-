@@ -13,22 +13,30 @@ class Deck(models.Model):
     title = models.TextField()
     subject = models.CharField(max_length=255, default="No subject provided")
     num_of_cards = models.IntegerField(default=0)
+    mastery_progress = models.FloatField(default=0)
+    is_mastered = models.BooleanField(default=False)
 
     user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, null=True)
-    
+
 class Card(models.Model):
+    class CardStatusOptions(models.TextChoices):
+        UNSEEN = "unseen", "Unseen"
+        STRUGGLING = "strgl", "struggling"
+        IMPROVING = "imprv", "Improving"
+        MASTERED = "mstrd", "Mastered"
+
     question = models.TextField()
     answer = models.TextField()
-    card_deck = models.ForeignKey(Deck, on_delete=models.CASCADE)
+    card_deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name="card_deck")
+    learning_status = models.CharField(max_length=10, default=CardStatusOptions.UNSEEN, choices=CardStatusOptions.choices)
 
     repetitions = models.IntegerField(default=0)
     difficulty = models.FloatField(default=5.0)
     stability = models.FloatField(default=1440.0)
-    learning_status = models.CharField(max_length=255, default="Unseen")
 
     last_review_date = models.DateTimeField(null=True, blank=True)
     scheduled_date = models.DateTimeField(null=True, blank=True)
-    
+
     def update_sm21(self, rating):
         now_utc = timezone.now()
 
@@ -82,11 +90,11 @@ class Card(models.Model):
 
         # 6. Learning status
         if interval_min < 10 * MINUTE and self.difficulty > 5.5:
-            self.learning_status = "Struggling"
+            self.learning_status = Card.CardStatusOptions.STRUGGLING
         elif interval_min > 45 * DAY // MINUTE and self.difficulty <= 4.0:
-            self.learning_status = "Mastered"
+            self.learning_status = Card.CardStatusOptions.MASTERED
         else:
-            self.learning_status = "In Progress"
+            self.learning_status = Card.CardStatusOptions.IMPROVING
 
         # 7. Save + log
         reward_xp(self.card_deck.user, rating)

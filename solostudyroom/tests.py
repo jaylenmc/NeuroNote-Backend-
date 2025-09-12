@@ -235,13 +235,17 @@ class PinnedResourceTestCase(APITestCase):
                 print(response.data)
 
     def test_studyroom_stats(self):
-        duration = timedelta(hours=1, minutes=23, seconds=34)
-        print(f"Hours: {(duration.total_seconds() // 3600)}")
-        print(f"Minutes: {(duration.total_seconds() % 3600) // 60}")
-        print(f"Seconds: {duration.total_seconds()}")
-        review_log = ReviewLog.objects.create(user=self.user, session_time=duration)
-        
-        [review_log.cards.add(card) for card in self.cards]
+        print("==================== StudyRoom Stats ====================")
+        duration1 = timedelta(hours=1, minutes=23, seconds=34)
+        duration2 = timedelta(hours=0, minutes=12, seconds=11)
+        duration3 = timedelta(hours=0, minutes=30, seconds=43)
+        review_logs = ReviewLog.objects.bulk_create([
+            ReviewLog(user=self.user, session_time=duration1),
+            ReviewLog(user=self.user, session_time=duration2),
+            ReviewLog(user=self.user, session_time=duration3)
+        ])
+        [review_log.cards.add(card) for review_log in review_logs for card in self.cards]
+
         url = reverse('study-stats')
         url_params = f"{url}?user_timezone=America/Chicago"
         response = self.client.get(url_params)

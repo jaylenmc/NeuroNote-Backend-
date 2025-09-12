@@ -12,6 +12,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from flashcards.models import Card
 from flashcards.models import ReviewLog
+from datetime import timedelta
 
 class PinnedResourceClass(APIView):
     permission_classes = [IsAuthenticated]
@@ -74,16 +75,23 @@ class PinnedResourceClass(APIView):
         
 @api_view(["GET"])
 def studyroom_stats(request):
+    # Total cards studied today logic
     user_timezone = request.query_params.get("user_timezone")
     end_of_day = datetime.now(ZoneInfo(user_timezone)).replace(hour=23, minute=59, second=59, microsecond=999999)
     start_of_day = datetime.now(ZoneInfo(user_timezone)).replace(hour=0, minute=0, second=0, microsecond=0)
-
     cards = Card.objects.filter(card_deck__user=request.user, last_review_date__range=(start_of_day, end_of_day))
+
+    # Average session time logic
     review_log = ReviewLog.objects.filter(user=request.user).values_list("session_time", flat=True)
-    print(f"review log: {review_log}")
+    avg_session_time = sum([log.total_seconds() for log in review_log]) / review_log.count()
+    total_sec = timedelta(seconds=avg_session_time).total_seconds()
+    hours = total_sec // 3600
+    minutes = total_sec // 60
+    seconds = total_sec % 60
+
     stats = {
         "total_cards_studied_today": cards.count(),
-        
+        "average_session_time": f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
     }
 
     return Response(stats, status=status.HTTP_200_OK)

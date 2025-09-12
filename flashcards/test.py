@@ -11,61 +11,74 @@ from freezegun import freeze_time
 
 
 class CardTestCase(APITestCase):
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
         User = get_user_model()
-        self.user = User.objects.create_user(email='bob@gmail.com', password='12345')
-        self.deck = Deck.objects.bulk_create([
+        cls.user = User.objects.create_user(email='bob@gmail.com', password='12345')
+        cls.deck = Deck.objects.bulk_create([
             Deck(
-                user=self.user,
+                user=cls.user,
                 title='Test Deck',
                 subject='Test Subject'
             ),
             Deck(
-                user=self.user,
+                user=cls.user,
                 title='Test Deck2',
                 subject='Test Subject2'
             )
         ])
         time = timezone.now()
 
-        self.cards = Card.objects.bulk_create([
+        cls.cards = Card.objects.bulk_create([
             Card(
                 question='How many days are in a week',
                 answer='7',
-                card_deck=self.deck[1],
+                card_deck=cls.deck[1],
                 scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
-                last_review_date=time.isoformat()
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.MASTERED
             ),
             Card(
                 question='What is cultural studies?',
                 answer='The study of everyday life',
-                card_deck=self.deck[1],
+                card_deck=cls.deck[1],
                 scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
-                last_review_date=time.isoformat()
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.MASTERED
             ),
             Card(
                 question='How many people are in the world?',
                 answer='Billions',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat()
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.MASTERED
             ),
             Card(
                 question='How do you make pizza?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat()
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.STRUGGLING
             ),
         ])
 
+    def setUp(self):
         self.client.force_authenticate(user=self.user)
 
     def test_get_decks(self):
-        url = reverse('get-decks')
+        print("==================== Get Decks ====================")
+        url = reverse('delete-update-cards', args=[self.deck[0].pk])
         response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK, f'Status code error: {response.data}')
+        self.assertEqual(
+            response.status_code, 
+            status.HTTP_200_OK, 
+            msg=f'Status code error: {response.data}'
+            )
         print(response.data)
 
     def test_update_deck(self):
+        print("==================== Update Decks ====================")
         url = reverse('delete-update-cards', args=[self.deck[1].pk])
         data = {
             'title': 'Updated test title'
@@ -76,6 +89,7 @@ class CardTestCase(APITestCase):
         print(response.data)
 
     def test_create_card(self):
+        print("==================== Create Cards ====================")
         url = reverse('get-create-cards')
         data = {
             'question': 'how many days are in a week',
@@ -90,6 +104,7 @@ class CardTestCase(APITestCase):
 
     # For gathering all cards for review
     def test_get_cards(self):
+        print("==================== Get Cards For Review ====================")
         url = reverse('due-cards')
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK, f'Status code error: {response.data}')
@@ -98,6 +113,7 @@ class CardTestCase(APITestCase):
 
     # For delete single cards and in bulk
     def test_delete_cards(self):
+        print("==================== Delete Cards ====================")
         # url = reverse('delete-cards', args=[self.deck[0].pk, self.cards[2].pk])
         # response = self.client.delete(url)
 
@@ -116,13 +132,15 @@ class CardTestCase(APITestCase):
         print(response.data)
 
     def test_due_cards(self):
-        url = reverse('due-cards', args=[self.deck[0].pk])
+        print("==================== Due Cards ====================")
+        url = reverse('due-cards')
         response = self.client.get(url, format='json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         print(f'response data: {response.data}')
 
     def test_review_card_times(self):
-        card = Card.objects.get(id=self.cards.id)
+        print("==================== Review Card Times ====================")
+        card = Card.objects.get(id=self.cards.pop().pk)
         print(f'Before update: {card.scheduled_date}')
 
         with freeze_time("2025-07-07 20:40:51+00:00"):
@@ -177,19 +195,3 @@ class CardTestCase(APITestCase):
         )
 
         print(response.data)
-
-bev = {
-    "session_time": "00:14:24",
-    "review": [
-        {
-            "card_id": 2,
-            "deck_id": 4,
-            "quality": 5
-        },
-        {
-            "card_id": 1,
-            "deck_id": 6,
-            "quality": 2
-        }
-    ]
-}
