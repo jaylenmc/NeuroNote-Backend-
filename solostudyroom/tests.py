@@ -28,12 +28,14 @@ class PinnedResourceTestCase(APITestCase):
             Deck(
                 user=cls.user,
                 title='Test Deck',
-                subject='Test Subject'
+                subject='Test Subject',
+                is_mastered=True
             ),
             Deck(
                 user=cls.user,
                 title='Test Deck2',
-                subject='Test Subject2'
+                subject='Test Subject2',
+                is_mastered=True
             )
         ])
 
@@ -165,7 +167,7 @@ class PinnedResourceTestCase(APITestCase):
             if key == "link":
                 print("================ LINK ================")
                 url = reverse("delete-resource", args=[pk])
-                # url = f"{url}?resource_type=link"
+                url = f"{url}?resource_type=link"
 
                 link_before = PinnedResourcesDashboard.objects.get(user=self.user)
                 print(f"- Before call: {link_before.link.all()}")
