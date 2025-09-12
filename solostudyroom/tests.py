@@ -14,6 +14,7 @@ from flashcards.models import Card, Deck
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from django.utils import timezone
+from flashcards.models import ReviewLog
 
 @override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class PinnedResourceTestCase(APITestCase):
@@ -27,12 +28,14 @@ class PinnedResourceTestCase(APITestCase):
             Deck(
                 user=cls.user,
                 title='Test Deck',
-                subject='Test Subject'
+                subject='Test Subject',
+                is_mastered=True
             ),
             Deck(
                 user=cls.user,
                 title='Test Deck2',
-                subject='Test Subject2'
+                subject='Test Subject2',
+                is_mastered=True
             )
         ])
 
@@ -164,7 +167,7 @@ class PinnedResourceTestCase(APITestCase):
             if key == "link":
                 print("================ LINK ================")
                 url = reverse("delete-resource", args=[pk])
-                # url = f"{url}?resource_type=link"
+                url = f"{url}?resource_type=link"
 
                 link_before = PinnedResourcesDashboard.objects.get(user=self.user)
                 print(f"- Before call: {link_before.link.all()}")
@@ -234,6 +237,17 @@ class PinnedResourceTestCase(APITestCase):
                 print(response.data)
 
     def test_studyroom_stats(self):
+        print("==================== StudyRoom Stats ====================")
+        duration1 = timedelta(hours=1, minutes=23, seconds=34)
+        duration2 = timedelta(hours=0, minutes=12, seconds=11)
+        duration3 = timedelta(hours=0, minutes=30, seconds=43)
+        review_logs = ReviewLog.objects.bulk_create([
+            ReviewLog(user=self.user, session_time=duration1),
+            ReviewLog(user=self.user, session_time=duration2),
+            ReviewLog(user=self.user, session_time=duration3)
+        ])
+        [review_log.cards.add(card) for review_log in review_logs for card in self.cards]
+
         url = reverse('study-stats')
         url_params = f"{url}?user_timezone=America/Chicago"
         response = self.client.get(url_params)
