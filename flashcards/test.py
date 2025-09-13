@@ -61,6 +61,55 @@ class CardTestCase(APITestCase):
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
+            Card(
+                question='How do you makasdse pizsadsandkaza?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.STRUGGLING
+            ),
+            Card(
+                question='How do you masdsadadaake sdad?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.STRUGGLING
+            ),
+            Card(
+                question='Howwewew do you masdsadadaake sdad?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.STRUGGLING
+            ),
+            Card(
+                question='How wefiewbfiw you masdsadadaake sdad?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.STRUGGLING
+            ),
+            Card(
+                question='ewrknerlw do you masdsadadaake sdad?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.STRUGGLING
+            ),
+            Card(
+                question='How do ewfeownfewo masdsadadaake sdad?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.STRUGGLING
+            ),
+            Card(
+                question='How do you masdsadadaake ewfnewofnoew?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                last_review_date=time.isoformat(),
+                learning_status=Card.CardStatusOptions.STRUGGLING
+            ),
         ])
 
     def setUp(self):
@@ -180,6 +229,10 @@ class CardTestCase(APITestCase):
             status.HTTP_200_OK, 
             f'Status code error: {response.data}'
             )
+        self.assertTrue(
+            AuthUser.objects.get(email=self.user.email).xp > 0,
+            msg=f"User xp didn't increase: {response.data}"
+        )
         
         cardss = Card.objects.get(id=self.cards[-1].pk)
         cardss.last_review_date = timezone.now().isoformat()
