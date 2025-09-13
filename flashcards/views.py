@@ -19,7 +19,7 @@ from django.shortcuts import get_object_or_404
 class DeckCollection(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, deck_id):
+    def get(self, request, deck_id=None):
         if deck_id:
             deck = get_object_or_404(Deck, user=request.user, id=deck_id)
             num_of_cards(deck)
@@ -197,7 +197,7 @@ def review_card(request):
             card_input_serializer.save()
 
             review_log.cards.add(instance)
-            
+
         return Response({"Message": "Cards successfully reviewed"}, status=status.HTTP_200_OK)
     return Response(card_input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
