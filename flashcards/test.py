@@ -28,7 +28,7 @@ class CardTestCase(APITestCase):
                 subject='Test Subject2'
             )
         ])
-        time = timezone.now()
+        time = timezone.now() - timedelta(hours=1)
 
         cls.cards = Card.objects.bulk_create([
             Card(
