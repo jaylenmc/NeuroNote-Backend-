@@ -15,12 +15,12 @@ class FoldersTestCase(APITestCase):
         cls.sub_folder = Folder.objects.bulk_create([
             Folder(
                 name="Java class",
-                sub_folder=cls.folder,
+                parent_folder=cls.folder,
                 user=cls.user
             ),
             Folder(
                 name="Python class",
-                sub_folder=cls.folder,
+                parent_folder=cls.folder,
                 user=cls.user
             )
         ])
@@ -35,7 +35,7 @@ class FoldersTestCase(APITestCase):
                 title="Computer Science",
                 notes="In this class we learnign about the basics of programmming",
                 published=True,
-                folder=cls.folder
+                folder=cls.sub_folder[0]
             ),
   
         ])
@@ -45,7 +45,7 @@ class FoldersTestCase(APITestCase):
 
     def test_folders_get(self):
         print('================ Get ================')
-        url = reverse("folder-get-post")
+        url = reverse("folder-get-post", args=[self.sub_folder[0].pk])
         response = self.client.get(url)
 
         self.assertEqual(
@@ -59,7 +59,8 @@ class FoldersTestCase(APITestCase):
         print('================ Post ================')
         url = reverse("folder-get-post")
         data = {
-            "name": "Religion Class"
+            "name": "Religion Class",
+            "parent_folder_id": self.folder.pk
         }
         response = self.client.post(url, data=data)
 
