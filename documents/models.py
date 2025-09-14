@@ -8,7 +8,7 @@ class Document(models.Model):
     title = models.CharField(max_length=255, default="Untitled")
     notes = models.TextField()
     saved = models.DateTimeField(auto_now_add=True)
-    folder = models.ForeignKey(Folder, on_delete=models.CASCADE, related_name='document')
+    folder = models.ForeignKey(Folder, on_delete=models.CASCADE, related_name='folder_document')
     published = models.BooleanField(default=False)
     resource_type = models.CharField(choices=ResourceType.choices, max_length=8)
     tag = models.CharField(max_length=255, null=True, blank=True)

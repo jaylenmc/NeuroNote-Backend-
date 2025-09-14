@@ -1,13 +1,15 @@
 from rest_framework import serializers
-from .models import Folder, SubFolder
+from .models import Folder
+from documents.serializers import FolderDocumentSerializer
 
-class SubFolderSerializer(serializers.ModelSerializer):
+class SubFoldersSerializer(serializers.ModelSerializer):
     class Meta:
         fields = ['id', 'name', 'content_num']
-        model = SubFolder
+        model = Folder
 
 class FolderSerializer(serializers.ModelSerializer):
-    sub_folders = SubFolderSerializer(many=True, read_only=True)
+    folder_document = FolderDocumentSerializer(many=True)
+    sub_folders = SubFoldersSerializer(many=True)
     class Meta:
-        fields = ['id', 'name', 'content_num', 'sub_folders']
+        fields = ['id', 'name', 'content_num', 'sub_folders', 'folder_document','sub_folders']
         model = Folder

@@ -52,3 +52,8 @@ class PinnedDocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
         fields = ['id', 'title', 'resource_type', 'folder_id']
+
+class FolderDocumentSerializer(serializers.ModelSerializer):
+    class Meta:
+        fields = ['id', 'title', 'folder_id', 'published', 'saved']
+        model = Document
