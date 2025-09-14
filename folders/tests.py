@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
 from .models import Folder
+from documents.models import Document
 
 class FoldersTestCase(APITestCase):
     @classmethod
@@ -10,13 +11,40 @@ class FoldersTestCase(APITestCase):
         super().setUpClass()
         User = get_user_model()
         cls.user = User.objects.create(email="test@gmail.com")
+        cls.folder = Folder.objects.create(name="Computer Science", user=cls.user)
+        cls.sub_folder = Folder.objects.bulk_create([
+            Folder(
+                name="Java class",
+                sub_folder=cls.folder,
+                user=cls.user
+            ),
+            Folder(
+                name="Python class",
+                sub_folder=cls.folder,
+                user=cls.user
+            )
+        ])
+        cls.document = Document.objects.bulk_create([
+            Document(
+                title="Computer Science",
+                notes="In this class we learnign about the basics of programmming",
+                published=True,
+                folder=cls.folder
+            ),
+            Document(
+                title="Computer Science",
+                notes="In this class we learnign about the basics of programmming",
+                published=True,
+                folder=cls.folder
+            ),
+  
+        ])
     
     def setUp(self):
         self.client.force_authenticate(self.user)
 
     def test_folders_get(self):
         print('================ Get ================')
-        Folder.objects.create(name="Computer Science", user=self.user)
         url = reverse("folder-get-post")
         response = self.client.get(url)
 

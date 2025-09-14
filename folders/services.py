@@ -3,7 +3,7 @@ from folders.models import Folder
 
 def check_content_num(folder):
     num = Folder.objects.filter(id=folder.id).annotate(
-        document_count=Count('document', distinct=True),
+        document_count=Count('folder_document', distinct=True),
         quiz_count=Count('quiz', distinct=True)
     ).first()
 
