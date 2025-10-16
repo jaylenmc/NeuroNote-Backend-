@@ -25,7 +25,7 @@ NeuroNote is a study platform built with Django REST Framework, designed for stu
 1. Clone the repo <br>
 - git clone https://github.com/jaylenmc/NeuroNote.git <br>
     
-2. Create & activate a virtual environment <br>
+2. Create & activate a virtual environment (Use python3.12) <br>
 - python3 -m venv venv <br>
 - source venv/bin/activate (Mac/Linux) <br>
 - venv\Scripts\activate (Windows) <br>
