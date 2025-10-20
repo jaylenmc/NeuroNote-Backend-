@@ -12,7 +12,6 @@ class AchievementsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):
         if "user_achievements" in request.query_params:
-            print(f"User achievements: {request.query_params.get('user_achievements')}")
             if request.query_params.get("user_achievements", "").lower() == 'true':
                 user_acheivements = UserAchievements.objects.filter(user=request.user).first()
 

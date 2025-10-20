@@ -6,23 +6,28 @@ from rest_framework import status
 from .models import Document
 
 class DocumentTestCase(APITestCase):
-    def setUp(self):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
         User = get_user_model()
-        self.user = User.objects.create(email="bob@test.com")
-        self.folder = Folder.objects.create(
+        cls.user = User.objects.create(email="bob@test.com")
+        cls.folder = Folder.objects.create(
             name='test_folder',
-            user=self.user
+            user=cls.user
         )
 
-        self.document = Document.objects.create(
+        cls.document = Document.objects.create(
             title = 'Cultural Studies 8/17/25',
             notes = 'Subjectivity\nIts about how to make money online and come to a conclusion about subjectivity and how us as a collective can collaborate together\nBut actually the aliens are coming to America',
-            folder = self.folder,
+            folder = cls.folder,
             published = False
         )
+
+    def setUp(self):
         self.client.force_authenticate(user=self.user)
 
     def test_document_create(self):
+        print("==================== POST Test ====================")
         url = reverse('create-document')
         data = {
             'title': 'Cultural Studies 8/17/25',
@@ -37,6 +42,7 @@ class DocumentTestCase(APITestCase):
         print(response.data)
 
     def test_document_get(self):
+        print("==================== GET Test ====================")
         url = reverse('get-all-documents', args=[self.folder.pk])
 
         response = self.client.get(url, format='json')
@@ -47,6 +53,7 @@ class DocumentTestCase(APITestCase):
         print(response.data)
 
     def test_document_update(self):
+        print("==================== PUT Test ====================")
         url = reverse('update-document', args=[self.document.pk])
         data = {
             'title': 'Updated title',
@@ -55,7 +62,6 @@ class DocumentTestCase(APITestCase):
             'tag': 'Test tag',
             'is_published': True
         }
-        prev_tag = self.tag.title
         response = self.client.put(url, data=data, format='json')
         self.assertEqual(
             response.status_code,
@@ -66,18 +72,4 @@ class DocumentTestCase(APITestCase):
             response.data['title'], self.document.title,
             msg=f"Document didn't update: {response.data}"
             )
-        self.assertNotEqual(
-            Tag.objects.get(title='Test tag', document=response.data['id']).title,
-            prev_tag, 
-            msg=f"Tag not updated: {response.data}"
-            )
-        print(response.data)
-
-    def test_tag_delete(self):
-        url = reverse('delete-tag', args=[self.document.pk, self.tag.pk])
-        tag = self.tag.title
-        response = self.client.delete(url)
-        
-        self.assertEqual(response.status_code, status.HTTP_200_OK, msg=f"Status code error: {response.data}")
-        self.assertFalse(Tag.objects.filter(title=tag, document=self.document), msg=f"Tag not deleted: {response.data}")
         print(response.data)

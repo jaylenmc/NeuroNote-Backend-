@@ -24,11 +24,6 @@ def googleApi(request):
     if not code or error:
         return Response(f"Missing code or received error: {error}", status=status.HTTP_400_BAD_REQUEST)
 
-    # if request.session['state'] != request.GET.get('state'):
-    #     Response("States dont match", status=400)
-
-    # authorization_url = f'https://accounts.google.com/o/oauth2/v2/auth?client_id=REDACTED&redirect_uri=http://127.0.0.1:8000/api/auth/google/&response_type=code&scope=email%20profile%20openid&access_type=offline&prompt=consent'
-
     try:
         data = {
             'grant_type': 'authorization_code',
@@ -160,6 +155,10 @@ def refreshAccessToken(user):
     
 class CookieTokenRefreshView(TokenRefreshView):
     def post(self, request, *args, **kwargs):
+        # Get from cookies during production
+        # refresh_token = request.COOKIES.get('refresh_token')
+
+        # Get from body during development
         refresh_token = request.data.get('refresh_token')
         if not refresh_token:
             return Response({'detail': 'No refresh token found in cookies'}, status=status.HTTP_401_UNAUTHORIZED)
