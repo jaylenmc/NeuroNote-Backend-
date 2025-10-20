@@ -12,6 +12,7 @@ from rest_framework.decorators import permission_classes, api_view
 import json
 import tiktoken
 import os
+from .models import DFBLUserInteraction
 
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
@@ -159,7 +160,7 @@ def generate_quiz(request):
                 }
             ]
         )
-        encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+        # encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
         raw_output = message.content
         text_output = "".join(
             block.text for block in raw_output if getattr(block, 'type', "") == 'text'
@@ -204,10 +205,7 @@ def cards_to_quiz(user_answers):
             messages=[
                 {
                     "role": "user",
-                    "content": [{
-                        "type": "text", 
-                        "text": prompt_text
-                        }]
+                    "content": [{"type": "text", "text": prompt_text}]
                 }
             ]
         )
@@ -216,3 +214,109 @@ def cards_to_quiz(user_answers):
         return cleaned_response
     except Exception as e:
         return {'Error': str(e)}
+
+@api_view(["POST"])
+def doing_feedback_loop(request):
+    dfbl_interaction = DFBLUserInteraction.objects.filter(user=request.user)
+    interaction_history = []
+    print(f"dfbl_interaction: {dfbl_interaction}")
+    print(f"interaction history: {interaction_history}")
+
+    if dfbl_interaction.exists() and request.data.get("attempt_count") > 0:
+        conversation_list = list(dfbl_interaction)
+
+        for interaction in conversation_list:
+            interaction_history.append(
+                {
+                    "role": "user", 
+                    "content": [{
+                        "type": "text", "text": f"Question: {interaction.question}\nCorrect answer: {interaction.correct_answer}\nUser answer: {interaction.user_answer}\nPrevious attempts: {interaction.attempts}"
+                    }]
+                }
+            )
+            interaction_history.append(
+                {
+                    "role": "assistant", 
+                    "content": [{
+                        "type": "text", "text": interaction.neuro_response
+                        }]
+                }
+            )
+
+        interaction_history.append({"role": "user", "content": [{
+            "type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"
+            }]})
+
+        message = client.messages.create(
+            model="claude-3-7-sonnet-20250219",
+            max_tokens=1000,
+            system='''
+                You are an expert tutor trained in cognitive science and deliberate practice.
+                Your goal is to help the user master understanding of a concept or question by giving high-quality,
+                critical feedback — without ever revealing the correct answer directly.
+
+                Your behavior and principles:
+                    1.	Never give away the correct answer.
+                Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
+                    2.	Be honest and direct.
+                If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
+                    3.	Be specific.
+                Identify what exactly is wrong or missing and why it matters.
+                    4.	Encourage improvement, not perfection.
+                Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
+                    5.	Foster deep learning.
+                Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
+                    6. Grade the users answer
+                Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
+                "grade" where you give a percentage.
+            ''',
+            messages=interaction_history
+        )
+        DFBLUserInteraction.objects.create(
+            user=request.user,
+            question=request.data.get("question"),
+            attempts=dfbl_interaction.last().attempts + 1,
+            correct_answer=request.data.get("correct_answer"),
+            user_answer=request.data.get("user_answer"),
+            neuro_response=message.content[0].text
+        )
+        return Response(message.content[0].text, status=status.HTTP_200_OK)
+
+    dfbl_interaction.delete()
+    message = client.messages.create(
+            model="claude-3-7-sonnet-20250219",
+            max_tokens=1000,
+            system='''
+                You are an expert tutor trained in cognitive science and deliberate practice.
+                Your goal is to help the user master understanding of a concept or question by giving high-quality,
+                critical feedback — without ever revealing the correct answer directly.
+
+                Your behavior and principles:
+                    1.	Never give away the correct answer.
+                Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
+                    2.	Be honest and direct.
+                If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
+                    3.	Be specific.
+                Identify what exactly is wrong or missing and why it matters.
+                    4.	Encourage improvement, not perfection.
+                Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
+                    5.	Foster deep learning.
+                Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
+                    6. Grade the users answer
+                Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
+                "grade" where you give a percentage out of 100 (this is used for the backend, the user isnt meant to see this)
+            ''',
+            messages=[{
+                "role": "user",
+                "content":[{"type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"}]
+            }]
+    )
+    DFBLUserInteraction.objects.create(
+            user=request.user,
+            question=request.data.get("question"),
+            attempts=request.data.get("attempt_count"),
+            correct_answer=request.data.get("correct_answer"),
+            user_answer=request.data.get("user_answer"),
+            neuro_response=message.content[0].text
+        )
+    return Response(message.content[0].text, status=status.HTTP_200_OK)

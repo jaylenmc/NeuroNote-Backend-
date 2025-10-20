@@ -8,27 +8,45 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch
 
 class AuthUserTests(APITestCase):
-    def setUp(self):
-        self.user = AuthUser.objects.create_user(
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = AuthUser.objects.create_user(
             email='test@gmail.com',
             password='12345',
         )
-        refresh = RefreshToken.for_user(user=self.user)
-        refresh['email'] = self.user.email
-        self.user.refresh_token = str(refresh)
-        self.user.jwt_token = str(refresh.access_token)
-        self.url = reverse('jwt-refresh')
+        refresh = RefreshToken.for_user(user=cls.user)
+        refresh['email'] = cls.user.email
+        cls.user.refresh_token = str(refresh)
+        cls.user.jwt_token = str(refresh.access_token)
+        cls.url = reverse('jwt-refresh')
         print(f'Refresh Token: {str(refresh)}')
 
-    def test_token_refresh(self):
-        self.client.cookies['refresh_token'] = self.user.refresh_token
-        response = self.client.post(self.url, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        print(response.data)
+    def setUp(self):
+        ...
+
+    @patch('authentication.views.requests.post')
+    def test_token_refresh(self, mock_post):
+        print('==================== Refresh Token ====================')
+        # Test refresh token from cookies (production)
+        # self.client.cookies['refresh_token'] = self.user.refresh_token
+
+        response = self.client.post(self.url, data={'refresh_token': self.user.refresh_token}, format='json')
+
+        self.assertEqual(
+            status.HTTP_200_OK,
+            response.status_code,
+            msg=f"status code error: {response.data}"
+        )
+        
+        print(f"Response data: {response.data}")
 
     @patch('authentication.views.requests.get')
     @patch('authentication.views.requests.post')
     def test_google_api(self, mock_post, mock_get):
+        print('==================== Google Api ====================')
+        url = reverse('google-api')
+
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {
             'access_token': 'test_access_token',
@@ -46,15 +64,12 @@ class AuthUserTests(APITestCase):
             'name': 'Test User'
         }
 
-        url = reverse('google-api')
         data = {'code': 'test_code'}
         response = self.client.post(url, data, format='json')
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-        # self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # self.assertIn('google_access_token', response.data['user'])
-        # self.assertIn('google_refresh_token', response.data['user'])
-        # self.assertIn('jwt_token', response.data['user'])
-        # self.assertIn('jwt_refresh', response.data)
+        self.assertEqual(
+            status.HTTP_200_OK, 
+            response.status_code,
+            msg=f"Status code error: {response.data}"
+            )
         print(f'Response Data: {response.data}')

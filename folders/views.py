@@ -22,7 +22,7 @@ class FolderView(APIView):
             serialized = FolderSerializer(folders, many=True)
 
             return Response({'folders': serialized.data}, status=status.HTTP_200_OK)
-        
+
         folder = Folder.objects.filter(user=request.user, id=folder_id).prefetch_related("folder_document")
         if not folder:
             return Response({'Message': 'Folder not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -31,7 +31,7 @@ class FolderView(APIView):
         folder.save()
         serialized = FolderSerializer(folder)
         return Response(serialized.data, status=status.HTTP_200_OK)
-        
+
     def post(self, request):
         input_serializer = FolderInputSerializer(data=request.data, context={'user': request.user})
         if input_serializer.is_valid():

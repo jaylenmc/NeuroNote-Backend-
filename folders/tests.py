@@ -45,7 +45,7 @@ class FoldersTestCase(APITestCase):
 
     def test_folders_get(self):
         print('================ Get ================')
-        url = reverse("folder-get-post", args=[self.sub_folder[0].pk])
+        url = reverse("folder-get-post", args=[self.folder.pk])
         response = self.client.get(url)
 
         self.assertEqual(
