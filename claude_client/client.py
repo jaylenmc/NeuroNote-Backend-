@@ -12,7 +12,7 @@ from rest_framework.decorators import permission_classes, api_view
 import json
 import tiktoken
 import os
-from .models import DFBLUserInteraction
+from .models import DFBLUserInteraction, UPSUserInteraction
 
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
@@ -82,7 +82,7 @@ class CardsGen(APIView):
         try:
             message = client.messages.create(
                 model="claude-3-7-sonnet-20250219",
-                max_tokens=1000,
+                max_tokens=10000,
                 temperature=0.7,
                 system="Generate a list of flashcards based on the prompt. Each card should be separated by '## Card', and each card should follow this format:\n## Card\n**Front**: <front>\n**Back**: <back>. Just respond with the flashcards, no other text.",
                 messages=[
@@ -215,6 +215,8 @@ def cards_to_quiz(user_answers):
     except Exception as e:
         return {'Error': str(e)}
 
+# ------------------------------------------------ Doing + Feedback Loop ------------------------------------------------
+
 @api_view(["POST"])
 def doing_feedback_loop(request):
     dfbl_interaction = DFBLUserInteraction.objects.filter(user=request.user)
@@ -251,24 +253,19 @@ def doing_feedback_loop(request):
             model="claude-3-7-sonnet-20250219",
             max_tokens=1000,
             system='''
-                You are an expert tutor trained in cognitive science and deliberate practice.
-                Your goal is to help the user master understanding of a concept or question by giving high-quality,
-                critical feedback — without ever revealing the correct answer directly.
+            You are an expert tutor in cognitive science. Your job is to evaluate student answers based ONLY on understanding of the concept.
 
-                Your behavior and principles:
-                    1.	Never give away the correct answer.
-                Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
-                    2.	Be honest and direct.
-                If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
-                    3.	Be specific.
-                Identify what exactly is wrong or missing and why it matters.
-                    4.	Encourage improvement, not perfection.
-                Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
-                    5.	Foster deep learning.
-                Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
-                    6. Grade the users answer
-                Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
-                "grade" where you give a percentage.
+            Grading instructions:
+            1. Do NOT consider grammar, sentence structure, or wording.
+            2. Do NOT give the correct answer.
+            3. Focus entirely on whether the ideas in the student's answer show understanding.
+            4. Label a "Verdict" as correct, partially correct, or incorrect.
+            5. Give a numerical "grade" as a percentage (0-100%) based on conceptual accuracy.
+
+            Feedback instructions:
+            - Point out misconceptions.
+            - Ask questions to guide reasoning.
+            - Suggest how to improve understanding without giving the answer.
             ''',
             messages=interaction_history
         )
@@ -304,7 +301,7 @@ def doing_feedback_loop(request):
                 Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
                     6. Grade the users answer
                 Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
-                "grade" where you give a percentage out of 100 (this is used for the backend, the user isnt meant to see this)
+                "grade" where you give a percentage.
             ''',
             messages=[{
                 "role": "user",
@@ -320,3 +317,134 @@ def doing_feedback_loop(request):
             neuro_response=message.content[0].text
         )
     return Response(message.content[0].text, status=status.HTTP_200_OK)
+
+# ------------------------------------------------ Understanding + Problem Solving ------------------------------------------------
+@api_view(["POST"])
+def ups_connection(request):
+    if request.query_params.get('type') == 'explain':
+        ups_user_interaction = UPSUserInteraction.objects.filter(user=request.user)
+        if ups_user_interaction.exists() and ups_user_interaction.last().question != request.data.get('question'):
+            ups_user_interaction.delete()
+
+        interaction_history = []
+        if ups_user_interaction.exists():
+            for interaction in ups_user_interaction:
+                interaction_history.append(
+                    {
+                        'role': 'user',
+                        'content': [{
+                            'type': 'text',
+                            'text': f"Principles: {interaction.principles}\nSolution Summary: {interaction.solution_summary}"
+                        }]
+                    }
+                )
+                interaction_history.append(
+                    {
+                        'role': 'assistant',
+                        'content': [{
+                            'type': 'text',
+                            'text': interaction.neuro_response
+                        }]
+                    }
+                )
+        interaction_history.append({
+            'role': 'user',
+            'content': [{
+                'type': 'text',
+                'text': f"Principles: {request.data.get("principles")}\nSolution Summary: {request.data.get("solution_summary")}"
+            }]
+        })
+        message = client.messages.create(
+            model="claude-3-7-sonnet-20250219",
+            max_tokens=1000,
+            system='''
+            You are an expert educator and communication coach. Your task is to grade a student’s explanation of a concept based 
+            on how clearly, accurately, and simply they can explain it to a 10-year-old child.
+            1.	Clarity (0–4 points):
+            •	Uses simple, everyday language
+            •	Avoids unnecessary jargon
+            •	Sentences are easy to follow
+            2.	Accuracy (0–3 points):
+            •	Explanation is factually correct
+            •	Doesn’t oversimplify in a misleading way
+            •	Captures the main idea correctly
+            3.	Engagement & Analogy (0–2 points):
+            •	Uses relatable examples, comparisons, or metaphors appropriate for a 10-year-old
+            •	Keeps a friendly, curious tone
+            4.	Completeness (0–1 point):
+            •	Includes all key parts of the concept at a basic level
+            5. Grade the user's answer on a scale of 0 to 10
+
+        OUTPUT FORMAT:
+            •	Score: [total score]
+            •	Strengths: [briefly describe what they did well]
+            •	Improvements: [briefly describe what to improve]
+            •	Suggested improved version (optional): [rewrite their explanation in a more 10-year-old friendly way]
+            ''',
+            messages=interaction_history
+        )
+        UPSUserInteraction.objects.create(
+            user=request.user,
+            principles=None,
+            solution_summary=None,
+            explanation=request.data.get('explanation') if request.data.get('explanation') else None,
+            neuro_response=message.content[0].text,
+            question=request.data.get('question')
+        )
+        return Response(message.content[0].text, status=status.HTTP_200_OK)
+    elif request.query_params.get('type') == 'connection':
+        ups_user_interaction = UPSUserInteraction.objects.filter(user=request.user)
+        interaction_history = []
+        if ups_user_interaction.exists():
+            for interaction in ups_user_interaction:
+                interaction_history.append(
+                    {
+                        'role': 'user',
+                        'content': [{
+                            'type': 'text',
+                            'text': f"Principles: {interaction.principles}\nSolution Summary: {interaction.solution_summary}"
+                        }]
+                    }
+                )
+                interaction_history.append(
+                    {
+                        'role': 'assistant',
+                        'content': [{
+                            'type': 'text',
+                            'text': interaction.neuro_response
+                        }]
+                    }
+                )
+        interaction_history.append({
+            'role': 'user',
+            'content': [{
+                'type': 'text',
+                'text': f"Principles: {request.data.get("principles")}\nSolution Summary: {request.data.get("solution_summary")}"
+            }]
+        })
+        message = client.messages.create(
+            model="claude-3-7-sonnet-20250219",
+            max_tokens=1000,
+            system='''
+            You are an expert educator and communication coach. Your task is to grade a student’s
+            principles and solutions on not only how they are connected to one another, but
+            how they are related to the problem. You should give a grade based on the quality
+             of the connection and the relevance to the problem. When scoring give either a pass
+             or fail. If the user fails, give a detailed explanation of why they failed.
+            
+            OUTPUT FORMAT:
+            •	Score: [total score]
+            •	Strengths: [briefly describe what they did well]
+            •	Improvements: [briefly describe what to improve]
+            ''',
+            messages=interaction_history
+        )
+        UPSUserInteraction.objects.create(
+            user=request.user,
+            principles=request.data.get("principles"),
+            solution_summary=request.data.get("solution_summary"),
+            neuro_response=message.content[0].text
+        )
+        return Response(message.content[0].text, status=status.HTTP_200_OK)
+    else:
+        return Response({'Error': 'Invalid type'}, status=status.HTTP_400_BAD_REQUEST)
