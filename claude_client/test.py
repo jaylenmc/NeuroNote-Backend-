@@ -56,3 +56,18 @@ class ClaudeTestCase(APITestCase):
         )
         print(f"DFBLUserInteraction: {DFBLUserInteraction.objects.filter(user=self.user)}")
         print(f"Response type: {response2.data}")
+
+    def ups_explain(self):
+        url = reverse("ups_explain")
+        data = {
+            "question": "What is cultural studies",
+            "correct_answer": "An interdisciplinary field that examines how culture is created, how it shapes human experiences, and how it relates to power structures",
+            "user_answer": "Minecraft is the coolest game ever",
+        }
+        response = self.client.post(url, data=data, format='json')
+        self.assertEqual(
+            response.status_code, 
+            status.HTTP_200_OK, 
+            msg=f"Status code error: {response.data}"
+            )
+        print(response.data)

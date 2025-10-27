@@ -6,5 +6,6 @@ urlpatterns = [
     path('notetaker/', client.NoteTakerAi.as_view()),
     path('cardsgen/', client.CardsGen.as_view()),
     path('testgen/', client.generate_quiz, name='test-gen'),
-    path('doingfeedback/', client.doing_feedback_loop, name='doing_feedback_loop')
+    path('doingfeedback/', client.doing_feedback_loop, name='doing_feedback_loop'),
+    path('upsexplain/', client.ups_explain, name='ups_explain')
 ]
