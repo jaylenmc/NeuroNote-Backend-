@@ -13,6 +13,7 @@ import json
 import tiktoken
 import os
 from .models import DFBLUserInteraction, UPSUserInteraction
+from .serializers import UPSSerializer
 
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
@@ -173,7 +174,6 @@ def generate_quiz(request):
 
         if cleaned_text.endswith("```"):
             cleaned_text = cleaned_text[:-3].strip()
-        print(f"Cleaned text: {cleaned_text}")
         data = json.loads(text_output)
 
         return Response(data, status=status.HTTP_200_OK)
@@ -221,8 +221,6 @@ def cards_to_quiz(user_answers):
 def doing_feedback_loop(request):
     dfbl_interaction = DFBLUserInteraction.objects.filter(user=request.user)
     interaction_history = []
-    print(f"dfbl_interaction: {dfbl_interaction}")
-    print(f"interaction history: {interaction_history}")
 
     if dfbl_interaction.exists() and request.data.get("attempt_count") > 0:
         conversation_list = list(dfbl_interaction)
@@ -319,22 +317,27 @@ def doing_feedback_loop(request):
     return Response(message.content[0].text, status=status.HTTP_200_OK)
 
 # ------------------------------------------------ Understanding + Problem Solving ------------------------------------------------
-@api_view(["POST"])
-def ups_connection(request):
-    if request.query_params.get('type') == 'explain':
-        ups_user_interaction = UPSUserInteraction.objects.filter(user=request.user)
-        if ups_user_interaction.exists() and ups_user_interaction.last().question != request.data.get('question'):
-            ups_user_interaction.delete()
 
+@api_view(["POST"])
+def understand_problem_solving(request):
+    if request.query_params.get('type') == 'explain':
+        explain_serializer = UPSSerializer(data=request.data, context={"user": request.user, "type": "explain"})
+        if not explain_serializer.is_valid():
+            return Response({"Message": explain_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        ups_user_interaction = UPSUserInteraction.objects.filter(user=request.user)
         interaction_history = []
+
         if ups_user_interaction.exists():
+            if ups_user_interaction.last().question != explain_serializer.validated_data.get("question"):
+                ups_user_interaction.delete()
+
             for interaction in ups_user_interaction:
                 interaction_history.append(
                     {
                         'role': 'user',
                         'content': [{
                             'type': 'text',
-                            'text': f"Principles: {interaction.principles}\nSolution Summary: {interaction.solution_summary}"
+                            'text': f"Question: {interaction.question}\nExplanation: {interaction.explanation}"
                         }]
                     }
                 )
@@ -351,7 +354,7 @@ def ups_connection(request):
             'role': 'user',
             'content': [{
                 'type': 'text',
-                'text': f"Principles: {request.data.get("principles")}\nSolution Summary: {request.data.get("solution_summary")}"
+                'text': f"Question: {explain_serializer.validated_data.get("question")}\nExplanation: {explain_serializer.validated_data.get("explanation")}"
             }]
         })
         message = client.messages.create(
@@ -383,43 +386,54 @@ def ups_connection(request):
             ''',
             messages=interaction_history
         )
-        UPSUserInteraction.objects.create(
-            user=request.user,
-            principles=None,
-            solution_summary=None,
-            explanation=request.data.get('explanation') if request.data.get('explanation') else None,
-            neuro_response=message.content[0].text,
-            question=request.data.get('question')
-        )
+
+        explain_serializer.create(data=explain_serializer.validated_data)
         return Response(message.content[0].text, status=status.HTTP_200_OK)
+    
     elif request.query_params.get('type') == 'connection':
+        connection_serializer = UPSSerializer(data=request.data, context={"user": request.user, "type": "connection"})
+        if not connection_serializer.is_valid():
+            return Response({"Message": connection_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        
         ups_user_interaction = UPSUserInteraction.objects.filter(user=request.user)
         interaction_history = []
         if ups_user_interaction.exists():
-            for interaction in ups_user_interaction:
-                interaction_history.append(
+            # Update the model with the question from first user attempt
+            interaction_history.append(
                     {
                         'role': 'user',
                         'content': [{
                             'type': 'text',
-                            'text': f"Principles: {interaction.principles}\nSolution Summary: {interaction.solution_summary}"
+                            'text': f"Question: {ups_user_interaction.first().question}\nExplanation: {ups_user_interaction.first().explanation}"
                         }]
                     }
                 )
-                interaction_history.append(
-                    {
-                        'role': 'assistant',
-                        'content': [{
-                            'type': 'text',
-                            'text': interaction.neuro_response
-                        }]
-                    }
-                )
+            for interaction in ups_user_interaction:
+                if interaction.solution_summary:
+                    interaction_history.append(
+                        {
+                            'role': 'user',
+                            'content': [{
+                                'type': 'text',
+                                'text': f"Principles: {interaction.principles}\nSolution Summary: {interaction.solution_summary}"
+                            }]
+                        }
+                    )
+                    interaction_history.append(
+                        {
+                            'role': 'assistant',
+                            'content': [{
+                                'type': 'text',
+                                'text': interaction.neuro_response
+                            }]
+                        }
+                    )
+
         interaction_history.append({
             'role': 'user',
             'content': [{
                 'type': 'text',
-                'text': f"Principles: {request.data.get("principles")}\nSolution Summary: {request.data.get("solution_summary")}"
+                'text': f"Principles: {connection_serializer.validated_data.get('principles')}\nSolution Summary: {connection_serializer.validated_data.get('principles')}"
             }]
         })
         message = client.messages.create(
@@ -429,8 +443,9 @@ def ups_connection(request):
             You are an expert educator and communication coach. Your task is to grade a student’s
             principles and solutions on not only how they are connected to one another, but
             how they are related to the problem. You should give a grade based on the quality
-             of the connection and the relevance to the problem. When scoring give either a pass
-             or fail. If the user fails, give a detailed explanation of why they failed.
+            of the connection and the relevance to the problem. When scoring give either a pass
+            or fail. If the user fails, give a detailed explanation of why they failed. This is a follow up question
+            after the user answered the question with a explanation (explain the answer like your explaining to a 10-year-old child).
             
             OUTPUT FORMAT:
             •	Score: [total score]
@@ -439,12 +454,7 @@ def ups_connection(request):
             ''',
             messages=interaction_history
         )
-        UPSUserInteraction.objects.create(
-            user=request.user,
-            principles=request.data.get("principles"),
-            solution_summary=request.data.get("solution_summary"),
-            neuro_response=message.content[0].text
-        )
+        connection_serializer.create(data=connection_serializer.validated_data)
         return Response(message.content[0].text, status=status.HTTP_200_OK)
     else:
         return Response({'Error': 'Invalid type'}, status=status.HTTP_400_BAD_REQUEST)
