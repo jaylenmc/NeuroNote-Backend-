@@ -7,5 +7,5 @@ urlpatterns = [
     path('cardsgen/', client.CardsGen.as_view()),
     path('testgen/', client.generate_quiz, name='test-gen'),
     path('doingfeedback/', client.doing_feedback_loop, name='doing_feedback_loop'),
-    path('upsexplain/', client.ups_explain, name='ups_explain')
+    path('upsexplain/', client.understand_problem_solving, name='understand_problem_solving')
 ]
