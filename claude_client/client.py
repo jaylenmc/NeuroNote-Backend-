@@ -330,26 +330,28 @@ def understand_problem_solving(request):
         if ups_user_interaction.exists():
             if ups_user_interaction.last().question != explain_serializer.validated_data.get("question"):
                 ups_user_interaction.delete()
-
-            for interaction in ups_user_interaction:
-                interaction_history.append(
-                    {
-                        'role': 'user',
-                        'content': [{
-                            'type': 'text',
-                            'text': f"Question: {interaction.question}\nExplanation: {interaction.explanation}"
-                        }]
-                    }
-                )
-                interaction_history.append(
-                    {
-                        'role': 'assistant',
-                        'content': [{
-                            'type': 'text',
-                            'text': interaction.neuro_response
-                        }]
-                    }
-                )
+            else:
+                # Only add to history if there's a valid neuro_response
+                for interaction in ups_user_interaction:
+                    if interaction.neuro_response:  # Check if neuro_response is not empty
+                        interaction_history.append(
+                            {
+                                'role': 'user',
+                                'content': [{
+                                    'type': 'text',
+                                    'text': f"Question: {interaction.question}\nExplanation: {interaction.explanation}"
+                                }]
+                            }
+                        )
+                        interaction_history.append(
+                            {
+                                'role': 'assistant',
+                                'content': [{
+                                    'type': 'text',
+                                    'text': interaction.neuro_response
+                                }]
+                            }
+                        )
         interaction_history.append({
             'role': 'user',
             'content': [{
@@ -387,7 +389,13 @@ def understand_problem_solving(request):
             messages=interaction_history
         )
 
-        explain_serializer.create(data=explain_serializer.validated_data)
+        # Save the interaction with the neuro_response
+        UPSUserInteraction.objects.create(
+            user=request.user,
+            question=explain_serializer.validated_data.get("question"),
+            explanation=explain_serializer.validated_data.get("explanation"),
+            neuro_response=message.content[0].text
+        )
         return Response(message.content[0].text, status=status.HTTP_200_OK)
     
     elif request.query_params.get('type') == 'connection':
@@ -409,7 +417,8 @@ def understand_problem_solving(request):
                     }
                 )
             for interaction in ups_user_interaction:
-                if interaction.solution_summary:
+                # Only add to history if solution_summary exists and neuro_response is not empty
+                if interaction.solution_summary and interaction.neuro_response:
                     interaction_history.append(
                         {
                             'role': 'user',
@@ -454,7 +463,20 @@ def understand_problem_solving(request):
             ''',
             messages=interaction_history
         )
-        connection_serializer.create(data=connection_serializer.validated_data)
+        
+        # Save the interaction with the neuro_response
+        # Get question from previous interaction (should exist from explain step)
+        question_text = ""
+        if ups_user_interaction.exists():
+            question_text = ups_user_interaction.first().question
+        
+        UPSUserInteraction.objects.create(
+            user=request.user,
+            question=question_text,
+            principles=connection_serializer.validated_data.get('principles'),
+            solution_summary=connection_serializer.validated_data.get('solution_summary'),
+            neuro_response=message.content[0].text
+        )
         return Response(message.content[0].text, status=status.HTTP_200_OK)
     else:
         return Response({'Error': 'Invalid type'}, status=status.HTTP_400_BAD_REQUEST)

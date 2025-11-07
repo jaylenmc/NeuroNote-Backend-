@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.utils import timezone
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -40,6 +41,10 @@ class AuthUser(AbstractBaseUser, PermissionsMixin):
 
     xp = models.IntegerField(default=0)
     level = models.IntegerField(default=1)
+
+    # current_streak = models.IntegerField(default=0)
+    # longest_streak = models.IntegerField(default=0)
+    # last_login_date = models.DateField(default=timezone.now)
 
     objects = UserManager()
 
