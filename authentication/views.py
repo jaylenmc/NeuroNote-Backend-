@@ -93,6 +93,16 @@ def googleApi(request):
     user_achiev, create = UserAchievements.objects.get_or_create(user=user)
     achievement = Achievements.objects.filter(name="The Journey Begins").first()
     user_achiev.achievements.add(achievement)
+    # Update streak
+    # if user.last_login_date.day != timezone.now().day:
+    #     user.current_streak = 0
+    #     user.last_login_date = timezone.now()
+    #     user.save()
+    # else if user.:
+    #     user.current_streak += 1
+    #     if user.current_streak > user.longest_streak:
+    #         user.longest_streak = user.current_streak
+    #     user.save()
 
     data_serialized = UserSerializer(user)
     
