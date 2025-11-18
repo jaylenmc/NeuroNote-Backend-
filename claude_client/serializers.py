@@ -1,48 +1,23 @@
 from rest_framework import serializers
-from .models import UPSUserInteraction
+from .models import UPSUserInteraction, DFBLUserInteraction
+from flashcards.models import Card
 
 class UPSSerializer(serializers.Serializer):
-    question = serializers.CharField()
-    explanation = serializers.CharField(required=False)
-    principles = serializers.JSONField(required=False, default=list)
-    solution_summary = serializers.CharField(required=False)
+    user_answer = serializers.CharField()
+    attempt_count = serializers.IntegerField()
+    card = serializers.PrimaryKeyRelatedField(queryset=Card.objects.all())
+    tutor_style = serializers.ChoiceField(choices=DFBLUserInteraction.TutorStyle.choices)
 
-    def validate(self, data):
-        explanation = data.get("explanation")
-        principles = data.get("principles")
-        solution_summary = data.get("solution_summary")
-
-        if not (
-            (explanation and not principles and not solution_summary) or 
-            (not explanation and (principles and solution_summary))
-        ):
-            raise serializers.ValidationError("Along with question include either 'Explanation' or 'Principles' and 'Solution Summary'")
-        
+    def validate_attempt_count(self, data):
+        if data < 0:
+            raise serializers.ValidationError("Attempt count must be greater than or equal to 0")
         return data
-    
-    def create(self, data):
-        type = self.context.get("type")
-        user = self.context.get("user")
 
-        if type == 'explain':
-            explanation = data.get('explanation')
-            question = data.get('question')
-
-            explanation_obj = UPSUserInteraction.objects.create(
-                user=user,
-                explanation=explanation,
-                question=question
-            )
-            return explanation_obj
-        
-        elif type == 'connection':
-            principles = data.get('principles')
-            solution_summary = data.get("solution_summary")
-            user = user
-
-            connection_obj = UPSUserInteraction.objects.create(
-                user=user,
-                principles=principles,
-                solution_summary=solution_summary
-            )
-            return connection_obj
+    def create(self, validated_data):
+        print(f'User: {self.context.get('request').user}')
+        data = DFBLUserInteraction.objects.create(
+        user=self.context.get('request').user,
+        neuro_response=validated_data.get('neuro_response'),
+        card=validated_data.get('card')
+        )
+        return data

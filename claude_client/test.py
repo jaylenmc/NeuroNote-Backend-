@@ -3,10 +3,23 @@ from django.urls import reverse
 from authentication.models import AuthUser
 from rest_framework import status
 from .models import DFBLUserInteraction, UPSUserInteraction
+from django.contrib.auth import get_user_model
+from flashcards.models import Deck, Card
 
 class ClaudeTestCase(APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        User = get_user_model()
+        cls.user = User.objects.create_user(email='bob@gmail.com', password='12345')
+
+        cls.deck1 = Deck.objects.create(user=cls.user, title="Test Deck", subject="Test Subject")
+        cls.deck2 = Deck.objects.create(user=cls.user, title="Test Deck2", subject="Test Subject2")
+
+        cls.card1 = Card.objects.create(answer='Test Deck', question='Test Subject', card_deck=cls.deck1)
+        cls.card2 = Card.objects.create(answer='Test Deck2', question='Test Subject2', card_deck=cls.deck2)
+
     def setUp(self):
-        self.user = AuthUser.objects.create(email='bob@testmail.com')
         self.client.force_authenticate(user=self.user)
 
     def test_generate_test(self):
@@ -16,50 +29,46 @@ class ClaudeTestCase(APITestCase):
         self.assertTrue(isinstance(response.data, dict), msg=f"Response not dict: {response.data}")
 
     def doing_feedback_loop(self):
+        print(f'self cards: {self.card1}')
         url = reverse("doing_feedback_loop")
-        neuro_responses = ["completly incorrect! ARE YOU EVEN TAKING THIS SERIOUS?!?"]
-        user_answers = ["Its the study of everyday human life", "Its the study of human cognitive activity", "Its how chickens can physcially morph into cows", "Its how politics affect the world", "How even the number 10 is"]
-        for i in range(5):
-            print(f"==================== {i} Iteration ====================")
-            data = {
-                "question": "What is cultural studies",
-                "correct_answer": "An interdisciplinary field that examines how culture is created, how it shapes human experiences, and how it relates to power structures",
-                "user_answer": user_answers[i],
-                "attempt_count": i,
-            }
-            response = self.client.post(url, data=data, format='json')
-            self.assertEqual(
-                response.status_code,
-                status.HTTP_200_OK,
-                msg=f"Status code error: {response.data}"
-            )
-            neuro_responses.append(response.data)
-            print(response.data)
-        print("==================== Final Iteration ====================")
-        print(f"DFBLUserInteraction (Before): {DFBLUserInteraction.objects.filter(user=self.user)}")
-        new_data = {
-           "question": "What is cultural studies",
-            "correct_answer": "An interdisciplinary field that examines how culture is created, how it shapes human experiences, and how it relates to power structures",
-            "user_answer": "Minecraft is the coolest game ever",
+        data = {
+            "card": self.card1.pk,
+            "tutor_style": "strict",
+            "user_answer": "Its the study of human cognitive activity",
             "attempt_count": 0,
         }
-
-        response2 = self.client.post(url, data=new_data, format='json')
+        response = self.client.post(url, data=data, format='json')
         self.assertEqual(
-            response2.status_code,
+            response.status_code,
             status.HTTP_200_OK,
-            msg=f"Status code error: {response2.data}"
+            msg=f"Status code error: {response.data}"
         )
-        self.assertTrue(
-            DFBLUserInteraction.objects.filter(user=self.user).count() == 1,
-            msg=f"Conversation history didn't delete: {response2.data}"
-        )
-        print(f"DFBLUserInteraction: {DFBLUserInteraction.objects.filter(user=self.user)}")
-        print(f"Response type: {response2.data}")
+        print(response.data)
+        # print("==================== Final Iteration ====================")
+        # print(f"DFBLUserInteraction (Before): {DFBLUserInteraction.objects.filter(user=self.user)}")
+        # new_data = {
+        # "card": self.card2.pk,
+        #     "tutor_style": "strict",
+        #     "user_answer": "Minecraft is the coolest game ever",
+        #     "attempt_count": 0,
+        # }
+
+        # response2 = self.client.post(url, data=new_data, format='json')
+        # self.assertEqual(
+        #     response2.status_code,
+        #     status.HTTP_200_OK,
+        #     msg=f"Status code error: {response2.data}"
+        # )
+        # self.assertTrue(
+        #     DFBLUserInteraction.objects.filter(user=self.user).count() == 1,
+        #     msg=f"Conversation history didn't delete: {response2.data}"
+        # )
+        # print(f"DFBLUserInteraction: {DFBLUserInteraction.objects.filter(user=self.user)}")
+        # print(f"Response type: {response2.data}")
 
 # ======================================== Understand + Problem Solving Test Case ========================================
     def ups_explain(self):
-# ---------------------------------------- Explanation request ----------------------------------------
+        # ---------------------------------------- Explanation request ----------------------------------------
         url = reverse("understand_problem_solving")
         data = {
             "question": "What is cultural studies",

@@ -219,102 +219,172 @@ def cards_to_quiz(user_answers):
 
 @api_view(["POST"])
 def doing_feedback_loop(request):
-    dfbl_interaction = DFBLUserInteraction.objects.filter(user=request.user)
+    ups_serializer = UPSSerializer(data=request.data, context={"request": request})
+    if not ups_serializer.is_valid():
+        return Response({'Message': ups_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+    validated_data = ups_serializer.validated_data
+    card = Card.objects.filter(id=validated_data.get("card").id)
+    if not card:
+        return Response({'Message': 'Card not found'}, status=status.HTTP_400_BAD_REQUEST)
+    card_instance = card.first()
+
+    tutor_style_descriptions = {
+        "strict": "A no-nonsense tutor who challenges you and pushes you hard.",
+        "friendly": "A warm, casual tutor who explains things gently and encourages you.",
+        "professional": "A polished, classroom-style instructor with clear reasoning.",
+        "speed_run": "Fast-paced, optimized explanations focusing on efficiency.",
+        "socratic": "A question-driven tutor that guides you to discover the answer.",
+        "supportive": "A motivational guide who reassures you and celebrates progress."
+    }
+
+    if validated_data.get("layer") == 1:
+        system = f"""
+            You are an AI study tutor. Adopt the following style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
+
+            Layer 1 – Quick Definition:
+            Your goal:
+            - Give a **short, super simple explanation** of the concept.
+            - Focus on defining the term or idea in the most basic way possible.
+            - Avoid details, examples, or metaphors unless absolutely necessary.
+
+            Now evaluate the user's answer to: "{card_instance.question}"
+            User's answer: "{validated_data.get('userAnswer')}"
+            Correct Answer: "{card_instance.answer}"
+
+            Provide:
+            - Feedback (clarity, correctness, completeness)
+            - A 1–2 sentence “Correct Answer (short version)”
+            - A simple Layer 1 explanation
+            - Decision: move to Layer 2 or stay at Layer 1
+        """
+
+    elif validated_data.get("layer") == 2:
+        system = f"""
+            You are an AI study tutor. Adopt the following style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
+
+            Layer 2 – Deeper Concept:
+            Your goal:
+            - Go deeper into the concept.
+            - Explain not just *what* it is but *how* it works and *why* it matters.
+            - Introduce key details, reasoning, or underlying mechanisms.
+            - Keep it concise; avoid overwhelming the user.
+
+            Evaluate the user's answer to: "{card_instance.question}"
+            User's answer: "{validated_data.get('userAnswer')}"
+            Correct Answer: "{card_instance.answer}"
+
+            Provide:
+            - Feedback (clarity, correctness, completeness)
+            - A concise “Correct Answer (medium version)”
+            - Layer 2 explanation focusing on how/why the concept works
+            - Contrast explanation for common misconceptions
+            - Decision: move to Layer 3, stay at Layer 2, or fallback to Layer 1
+        """
+
+    else:
+        system = f"""
+            You are an AI study tutor. Adopt the following style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
+
+            Layer 3 – Applied Example:
+            Your goal:
+            - Apply the concept to a real scenario, analogy, or problem.
+            - Show how the concept works in practice or why understanding it matters.
+            - Provide a concrete example that clarifies the idea.
+
+            Evaluate the user's answer to: "{card_instance.question}"
+            User's answer: "{validated_data.get('userAnswer')}"
+            Correct Answer: "{card_instance.answer}"
+
+            Provide:
+            - Feedback (clarity, correctness, completeness)
+            - “Correct Answer (applied version)” showing deeper understanding
+            - Layer 3 explanation with real-world example and applied reasoning
+            - Comparison-based correction if the user is confused
+            - Decision: indicate whether the user has mastered the card or should return to a previous layer
+            - Decision: move to Layer 4 or stay at Layer 3
+        """
+
+    dfbl_interaction = DFBLUserInteraction.objects.filter(user=request.data.get("user")).order_by('created_at')
     interaction_history = []
-
-    if dfbl_interaction.exists() and request.data.get("attempt_count") > 0:
-        conversation_list = list(dfbl_interaction)
-
-        for interaction in conversation_list:
-            interaction_history.append(
-                {
-                    "role": "user", 
-                    "content": [{
-                        "type": "text", "text": f"Question: {interaction.question}\nCorrect answer: {interaction.correct_answer}\nUser answer: {interaction.user_answer}\nPrevious attempts: {interaction.attempts}"
+    if dfbl_interaction.exists():
+        if card_instance.question.lower() == dfbl_interaction.last().question.lower():
+            print(f'card instance question: {card_instance.question}')
+            
+            for interaction in dfbl_interaction:
+                interaction_history.append({
+                    'role': 'user',
+                    'content': [{
+                        'type': 'text',
+                        'text': f"Question: {card_instance.question}\nCorrect answer: {card_instance.correct_answer}\nUser answer: {interaction.user_answer}\nCurrent attempt: {interaction.attempts}"
                     }]
-                }
-            )
-            interaction_history.append(
-                {
-                    "role": "assistant", 
-                    "content": [{
-                        "type": "text", "text": interaction.neuro_response
-                        }]
-                }
-            )
+                })
+                interaction_history.append({
+                    'role': 'assistant',
+                    'content': [{
+                        'type': 'text',
+                        'text': interaction.neuro_response
+                    }]
+                })
+        else:
+            dfbl_interaction.delete()
 
-        interaction_history.append({"role": "user", "content": [{
-            "type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"
-            }]})
-
-        message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
-            max_tokens=1000,
-            system='''
-            You are an expert tutor in cognitive science. Your job is to evaluate student answers based ONLY on understanding of the concept.
-
-            Grading instructions:
-            1. Do NOT consider grammar, sentence structure, or wording.
-            2. Do NOT give the correct answer.
-            3. Focus entirely on whether the ideas in the student's answer show understanding.
-            4. Label a "Verdict" as correct, partially correct, or incorrect.
-            5. Give a numerical "grade" as a percentage (0-100%) based on conceptual accuracy.
-
-            Feedback instructions:
-            - Point out misconceptions.
-            - Ask questions to guide reasoning.
-            - Suggest how to improve understanding without giving the answer.
-            ''',
-            messages=interaction_history
-        )
-        DFBLUserInteraction.objects.create(
-            user=request.user,
-            question=request.data.get("question"),
-            attempts=dfbl_interaction.last().attempts + 1,
-            correct_answer=request.data.get("correct_answer"),
-            user_answer=request.data.get("user_answer"),
-            neuro_response=message.content[0].text
-        )
-        return Response(message.content[0].text, status=status.HTTP_200_OK)
-
-    dfbl_interaction.delete()
-    message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
-            max_tokens=1000,
-            system='''
-                You are an expert tutor trained in cognitive science and deliberate practice.
-                Your goal is to help the user master understanding of a concept or question by giving high-quality,
-                critical feedback — without ever revealing the correct answer directly.
-
-                Your behavior and principles:
-                    1.	Never give away the correct answer.
-                Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
-                    2.	Be honest and direct.
-                If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
-                    3.	Be specific.
-                Identify what exactly is wrong or missing and why it matters.
-                    4.	Encourage improvement, not perfection.
-                Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
-                    5.	Foster deep learning.
-                Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
-                    6. Grade the users answer
-                Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
-                "grade" where you give a percentage.
-            ''',
-            messages=[{
-                "role": "user",
-                "content":[{"type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"}]
+    interaction_history.append({
+            'role': 'user',
+            'content': [{
+                'type': 'text',
+                'text': f"Question: {validated_data.get('question')}\nCorrect answer: {validated_data.get('correct_answer')}\nUser answer: {validated_data.get('user_answer')}\nCurrent attempt: {validated_data.get('attempt_count')}"
             }]
+        })
+
+    message = client.messages.create(
+        model="claude-3-7-sonnet-20250219",
+        max_tokens=3000,
+        system=system,
+        messages=interaction_history
     )
-    DFBLUserInteraction.objects.create(
-            user=request.user,
-            question=request.data.get("question"),
-            attempts=request.data.get("attempt_count"),
-            correct_answer=request.data.get("correct_answer"),
-            user_answer=request.data.get("user_answer"),
-            neuro_response=message.content[0].text
-        )
+    validated_data['neuro_response'] = message.content[0].text
+    ups_serializer.save(validated_data=validated_data)
+
     return Response(message.content[0].text, status=status.HTTP_200_OK)
+
+    # dfbl_interaction.delete()
+    # message = client.messages.create(
+    #         model="claude-3-7-sonnet-20250219",
+    #         max_tokens=1000,
+    #         system='''
+    #             You are an expert tutor trained in cognitive science and deliberate practice.
+    #             Your goal is to help the user master understanding of a concept or question by giving high-quality,
+    #             critical feedback — without ever revealing the correct answer directly.
+
+    #             Your behavior and principles:
+    #                 1.	Never give away the correct answer.
+    #             Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
+    #                 2.	Be honest and direct.
+    #             If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
+    #                 3.	Be specific.
+    #             Identify what exactly is wrong or missing and why it matters.
+    #                 4.	Encourage improvement, not perfection.
+    #             Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
+    #                 5.	Foster deep learning.
+    #             Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
+    #                 6. Grade the users answer
+    #             Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
+    #             "grade" where you give a percentage.
+    #         ''',
+    #         messages=[{
+    #             "role": "user",
+    #             "content":[{"type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"}]
+    #         }]
+    # )
+    # DFBLUserInteraction.objects.create(
+    #         user=request.user,
+    #         question=request.data.get("question"),
+    #         attempts=request.data.get("attempt_count"),
+    #         correct_answer=request.data.get("correct_answer"),
+    #         user_answer=request.data.get("user_answer"),
+    #         neuro_response=message.content[0].text
+    #     )
+    # return Response(message.content[0].text, status=status.HTTP_200_OK)
 
 # ------------------------------------------------ Understanding + Problem Solving ------------------------------------------------
 
@@ -324,7 +394,7 @@ def understand_problem_solving(request):
         explain_serializer = UPSSerializer(data=request.data, context={"user": request.user, "type": "explain"})
         if not explain_serializer.is_valid():
             return Response({"Message": explain_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-        ups_user_interaction = UPSUserInteraction.objects.filter(user=request.user)
+        ups_user_interaction = DFBLUserInteraction.objects.filter(user=request.user)
         interaction_history = []
 
         if ups_user_interaction.exists():
@@ -390,7 +460,7 @@ def understand_problem_solving(request):
         )
 
         # Save the interaction with the neuro_response
-        UPSUserInteraction.objects.create(
+        DFBLUserInteraction.objects.create(
             user=request.user,
             question=explain_serializer.validated_data.get("question"),
             explanation=explain_serializer.validated_data.get("explanation"),
@@ -403,7 +473,7 @@ def understand_problem_solving(request):
         if not connection_serializer.is_valid():
             return Response({"Message": connection_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
         
-        ups_user_interaction = UPSUserInteraction.objects.filter(user=request.user)
+        ups_user_interaction = DFBLUserInteraction.objects.filter(user=request.user)
         interaction_history = []
         if ups_user_interaction.exists():
             # Update the model with the question from first user attempt
@@ -470,7 +540,7 @@ def understand_problem_solving(request):
         if ups_user_interaction.exists():
             question_text = ups_user_interaction.first().question
         
-        UPSUserInteraction.objects.create(
+        DFBLUserInteraction.objects.create(
             user=request.user,
             question=question_text,
             principles=connection_serializer.validated_data.get('principles'),
