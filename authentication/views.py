@@ -89,6 +89,10 @@ def googleApi(request):
     user.jwt_token = str(refresh.access_token)
     user.save()
 
+    # Only the owner can access app (Collecting emails currently)
+    if email != "jayzilla195@gmail.com":
+        return Response({'Message': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
+
     # Assign first login achievement to user
     user_achiev, create = UserAchievements.objects.get_or_create(user=user)
     achievement = Achievements.objects.filter(name="The Journey Begins").first()
