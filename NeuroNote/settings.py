@@ -79,8 +79,15 @@ CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
-    'https://myneuronote.com'
-    ]
+    'https://myneuronote.com',
+    'https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app',
+    'https://neuro-note-frontend.vercel.app',
+]
+
+# Allow all Vercel preview deployments (wildcard pattern)
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
@@ -92,6 +99,18 @@ CSRF_TRUSTED_ORIGINS = [
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'jwt_token',
+    'authorization',
+    'content-type',
+]
+
+# Ensure OPTIONS requests are handled
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 MIDDLEWARE = [
