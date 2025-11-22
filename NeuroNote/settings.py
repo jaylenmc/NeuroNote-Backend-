@@ -22,15 +22,20 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
+import os
+import environ
+
+env = environ.Env(
+    DEBUG=(bool, False)
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env('DEBUG')
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['127.0.0.1', 'localhost', "neuronote-backend-production.up.railway.app"]
 
 # Application definition
-
 INSTALLED_APPS = [
     'daphne',
     'django.contrib.admin',
@@ -72,11 +77,17 @@ SIMPLE_JWT = {
 
 CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOWED_ORIGINS = ['http://localhost:5173']
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:5173',
+    'https://myneuronote.com'
+    ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "http://127.0.0.1:8000/",
+    "http://127.0.0.1:8000",
     "http://localhost:5173",
+    "https://myneuronote.com",
+    'https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app',
+    "https://neuronote-backend-production.up.railway.app"
 ]
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
@@ -175,29 +186,15 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'authentication.AuthUser'
 
-REDIRECT_URI = 'http://localhost:5173/auth/callback/'
+REDIRECT_URI = env('REDIRECT_URI', default='https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app/auth/callback/')
 
 LOGIN_URL = '/'
 
 ASGI_APPLICATION = 'NeuroNote.asgi.application'
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
-        },
-    },
-}
+CHANNEL_LAYERS = {}
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT =  BASE_DIR / 'media'
-
-import os
-import environ
-
-env = environ.Env(
-    DEBUG=(bool, False)
-)
 
 # Try to read from .env file, but don't fail if it doesn't exist
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
