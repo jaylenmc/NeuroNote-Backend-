@@ -79,15 +79,8 @@ CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
-    'https://myneuronote.com',
-    'https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app',
-    'https://neuro-note-frontend.vercel.app',
-]
-
-# Allow all Vercel preview deployments (wildcard pattern)
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.vercel\.app$",
-]
+    'https://myneuronote.com'
+    ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:8000",
@@ -99,24 +92,12 @@ CSRF_TRUSTED_ORIGINS = [
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'jwt_token',
-    'authorization',
-    'content-type',
-]
-
-# Ensure OPTIONS requests are handled
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # CORS must be before CommonMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -205,7 +186,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'authentication.AuthUser'
 
-REDIRECT_URI = env('REDIRECT_URI', default='https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app/auth/callback/')
+REDIRECT_URI = env('REDIRECT_URI')
 
 LOGIN_URL = '/'
 
