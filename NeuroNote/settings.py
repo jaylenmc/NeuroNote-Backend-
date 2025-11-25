@@ -82,14 +82,22 @@ SIMPLE_JWT = {
 }
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'https://myneuronote.com',
     'https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app',
     'https://neuro-note-frontend-m0ztbtdm8-jaylenmcs-projects.vercel.app',
-    ]
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.vercel\.app$",
@@ -102,10 +110,6 @@ CSRF_TRUSTED_ORIGINS = [
     'https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app',
     "https://neuronote-backend-production.up.railway.app",
     'https://neuro-note-frontend-m0ztbtdm8-jaylenmcs-projects.vercel.app',
-]
-
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    'jwt_token',
 ]
 
 MIDDLEWARE = [

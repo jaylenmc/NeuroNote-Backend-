@@ -1,5 +1,6 @@
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.permissions import AllowAny
 from django.http import JsonResponse
 import requests
 from django.conf import settings
@@ -16,8 +17,12 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from solostudyroom.models import PinnedResourcesDashboard
 
-@api_view(['POST'])
+@api_view(['POST', 'OPTIONS'])
+@permission_classes([AllowAny])
 def googleApi(request):
+    # Handle OPTIONS preflight requests
+    if request.method == 'OPTIONS':
+        return Response(status=status.HTTP_200_OK)
     print("Origin:", request.headers.get("Origin"))
     code = request.data.get('code')
     error = request.data.get('error')
