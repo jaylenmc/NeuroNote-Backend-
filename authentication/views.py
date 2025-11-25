@@ -20,6 +20,8 @@ from solostudyroom.models import PinnedResourcesDashboard
 def googleApi(request):
     code = request.data.get('code')
     error = request.data.get('error')
+    print(f"code: {code}")
+    print(f"error: {error}")
 
     if not code or error:
         return Response(f"Missing code or received error: {error}", status=status.HTTP_400_BAD_REQUEST)
@@ -35,6 +37,7 @@ def googleApi(request):
         
         access_token_url = 'https://oauth2.googleapis.com/token'
         response = requests.post(access_token_url, data=data)
+        print(f"response: {response.json()}")
         user_data = response.json()
         
         if 'error' in user_data:

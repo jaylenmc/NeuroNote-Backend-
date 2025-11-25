@@ -29,6 +29,8 @@ env = environ.Env(
     DEBUG=(bool, False)
 )
 
+environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
@@ -80,6 +82,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
     'https://myneuronote.com',
+    'https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app',
     ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -201,7 +204,6 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT =  BASE_DIR / 'media'
 
 # Try to read from .env file, but don't fail if it doesn't exist
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('SECRET_KEY')
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
