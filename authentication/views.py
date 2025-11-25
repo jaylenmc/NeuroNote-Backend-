@@ -18,6 +18,7 @@ from solostudyroom.models import PinnedResourcesDashboard
 
 @api_view(['POST'])
 def googleApi(request):
+    print("Origin:", request.headers.get("Origin"))
     code = request.data.get('code')
     error = request.data.get('error')
     print(f"code: {code}")
