@@ -65,7 +65,7 @@ def googleApi(request):
     email = user_info.get('email')
 
     print(f"Before user filter")
-    user = AuthUser.objects.filter(email=email).first()
+    user = AuthUser.objects.filter(email=email)
     print(f"After user filter: {user}")
     
     if not user:
@@ -105,7 +105,7 @@ def googleApi(request):
 
     # Assign first login achievement to user
     user_achiev, create = UserAchievements.objects.get_or_create(user=user)
-    achievement = Achievements.objects.filter(name="The Journey Begins").first()
+    achievement = Achievements.objects.get(name="The Journey Begins")
     print(f"Before achievement add")
     user_achiev.achievements.add(achievement)
     # Update streak
