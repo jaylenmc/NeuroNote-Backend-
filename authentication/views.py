@@ -65,6 +65,9 @@ def googleApi(request):
     email = user_info.get('email')
 
     print(f"Before user filter")
+    print(f"email: {email}")
+    print(f"auth user email: {AuthUser.objects.all()}")
+    print(f"auth user email: {AuthUser.objects.filter(email=email)}")
     user = AuthUser.objects.filter(email=email)
     print(f"After user filter: {user}")
     
