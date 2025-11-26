@@ -18,14 +18,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from solostudyroom.models import PinnedResourcesDashboard
 from django.http import JsonResponse
 
-def ping(request):
-    return JsonResponse({'message': 'OK'}, status=status.HTTP_200_OK)
-
-@api_view(['OPTIONS'])
-@permission_classes([AllowAny])
-def options_test(request):
-    return Response({"ok": True}, status=200)
-
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
 def googleApi(request):
