@@ -42,9 +42,9 @@ class AuthUser(AbstractBaseUser, PermissionsMixin):
     xp = models.IntegerField(default=0)
     level = models.IntegerField(default=1)
 
-    # current_streak = models.IntegerField(default=0)
-    # longest_streak = models.IntegerField(default=0)
-    # last_login_date = models.DateField(default=timezone.now)
+    current_streak = models.IntegerField(default=0)
+    longest_streak = models.IntegerField(default=0)
+    last_login_date = models.DateField(default=timezone.now)
 
     objects = UserManager()
 

@@ -15,7 +15,7 @@ class CardTestCase(APITestCase):
     def setUpClass(cls):
         super().setUpClass()
         User = get_user_model()
-        cls.user = User.objects.create_user(email='bob@gmail.com', password='12345')
+        cls.user = User.objects.create_user(email='bob@gmail.com')
         cls.deck = Deck.objects.bulk_create([
             Deck(
                 user=cls.user,
