@@ -10,6 +10,10 @@ https://docs.djangoproject.com/en/5.1/howto/deployment/wsgi/
 import os
 
 from django.core.wsgi import get_wsgi_application
+import sys
+print("Starting Django")
+print("Sys argv:", sys.argv)
+print("PORT:", os.environ.get("PORT"))
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'NeuroNote.settings')
 
