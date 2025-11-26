@@ -56,9 +56,8 @@ def googleApi(request):
     header = {
         'Authorization': f'Bearer {user_access_token}'
     }
-    print(f"Before user info response")
     user_info_response = requests.get('https://www.googleapis.com/oauth2/v3/userinfo', headers=header, timeout=5)
-    print(f"After user info response")
+    print(f"After user info response status code: {user_info_response.status_code}")
     if user_info_response.status_code != 200:
         return Response(f"Error getting user info: {user_info_response.text}", status=status.HTTP_400_BAD_REQUEST)
     
@@ -86,7 +85,8 @@ def googleApi(request):
         user.save()
 
     # Create pinned resources for user if it doesn't exists
-    pinned_resources = PinnedResourcesDashboard.objects.filter(user=user).first()
+    print(f"Before pinned resources")
+    pinned_resources = PinnedResourcesDashboard.objects.filter(user=user)
     if not pinned_resources:
         PinnedResourcesDashboard.objects.create(user=user)
 
@@ -95,6 +95,7 @@ def googleApi(request):
 
     user.jwt_token = str(refresh.access_token)
     user.save()
+    print(f"After user save")
 
     # Only the owner can access app (Collecting emails currently)
     if email != "jayzilla195@gmail.com":
@@ -103,6 +104,7 @@ def googleApi(request):
     # Assign first login achievement to user
     user_achiev, create = UserAchievements.objects.get_or_create(user=user)
     achievement = Achievements.objects.filter(name="The Journey Begins").first()
+    print(f"Before achievement add")
     user_achiev.achievements.add(achievement)
     # Update streak
     # if user.last_login_date.day != timezone.now().day:
@@ -115,6 +117,7 @@ def googleApi(request):
     #         user.longest_streak = user.current_streak
     #     user.save()
 
+    print(f"Before user serializer")
     data_serialized = UserSerializer(user)
     
     try:
