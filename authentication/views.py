@@ -24,11 +24,8 @@ def googleApi(request):
     # Handle OPTIONS preflight requests
     if request.method == 'OPTIONS':
         return Response(status=status.HTTP_200_OK)
-    print("Origin:", request.headers.get("Origin"))
     code = request.data.get('code')
     error = request.data.get('error')
-    print(f"code: {code}")
-    print(f"error: {error}")
 
     if not code or error:
         return Response(f"Missing code or received error: {error}", status=status.HTTP_400_BAD_REQUEST)
@@ -44,7 +41,6 @@ def googleApi(request):
         
         access_token_url = 'https://oauth2.googleapis.com/token'
         response = requests.post(access_token_url, data=data, timeout=5)
-        print(f"response: {response.json()}")
         user_data = response.json()
         
         if 'error' in user_data:
@@ -60,8 +56,9 @@ def googleApi(request):
     header = {
         'Authorization': f'Bearer {user_access_token}'
     }
+    print(f"Before user info response")
     user_info_response = requests.get('https://www.googleapis.com/oauth2/v3/userinfo', headers=header, timeout=5)
-
+    print(f"After user info response")
     if user_info_response.status_code != 200:
         return Response(f"Error getting user info: {user_info_response.text}", status=status.HTTP_400_BAD_REQUEST)
     
