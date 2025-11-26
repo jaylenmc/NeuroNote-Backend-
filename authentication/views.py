@@ -16,6 +16,15 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from solostudyroom.models import PinnedResourcesDashboard
+from django.http import JsonResponse
+
+def ping(request):
+    return JsonResponse({'message': 'OK'}, status=status.HTTP_200_OK)
+
+@api_view(['OPTIONS'])
+@permission_classes([AllowAny])
+def options_test(request):
+    return Response({"ok": True}, status=200)
 
 @api_view(['POST', 'OPTIONS'])
 @permission_classes([AllowAny])
@@ -42,7 +51,7 @@ def googleApi(request):
         }
         
         access_token_url = 'https://oauth2.googleapis.com/token'
-        response = requests.post(access_token_url, data=data)
+        response = requests.post(access_token_url, data=data, timeout=5)
         print(f"response: {response.json()}")
         user_data = response.json()
         
@@ -59,7 +68,7 @@ def googleApi(request):
     header = {
         'Authorization': f'Bearer {user_access_token}'
     }
-    user_info_response = requests.get('https://www.googleapis.com/oauth2/v3/userinfo', headers=header)
+    user_info_response = requests.get('https://www.googleapis.com/oauth2/v3/userinfo', headers=header, timeout=5)
 
     if user_info_response.status_code != 200:
         return Response(f"Error getting user info: {user_info_response.text}", status=status.HTTP_400_BAD_REQUEST)
