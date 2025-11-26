@@ -64,7 +64,9 @@ def googleApi(request):
     user_info = user_info_response.json()
     email = user_info.get('email')
 
+    print(f"Before user filter")
     user = AuthUser.objects.filter(email=email).first()
+    print(f"After user filter: {user}")
     
     if not user:
         user = AuthUser.objects.create_user(
