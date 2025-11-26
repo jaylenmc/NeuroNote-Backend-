@@ -1,6 +1,5 @@
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
 from django.http import JsonResponse
 import requests
 from django.conf import settings
@@ -16,16 +15,14 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from solostudyroom.models import PinnedResourcesDashboard
-from django.http import JsonResponse
 
-@api_view(['POST', 'OPTIONS'])
-@permission_classes([AllowAny])
+@api_view(['POST'])
 def googleApi(request):
-    # Handle OPTIONS preflight requests
-    if request.method == 'OPTIONS':
-        return Response(status=status.HTTP_200_OK)
+    print("Origin:", request.headers.get("Origin"))
     code = request.data.get('code')
     error = request.data.get('error')
+    print(f"code: {code}")
+    print(f"error: {error}")
 
     if not code or error:
         return Response(f"Missing code or received error: {error}", status=status.HTTP_400_BAD_REQUEST)
@@ -40,7 +37,8 @@ def googleApi(request):
         }
         
         access_token_url = 'https://oauth2.googleapis.com/token'
-        response = requests.post(access_token_url, data=data, timeout=5)
+        response = requests.post(access_token_url, data=data)
+        print(f"response: {response.json()}")
         user_data = response.json()
         
         if 'error' in user_data:
@@ -56,20 +54,15 @@ def googleApi(request):
     header = {
         'Authorization': f'Bearer {user_access_token}'
     }
-    user_info_response = requests.get('https://www.googleapis.com/oauth2/v3/userinfo', headers=header, timeout=5)
-    print(f"After user info response status code: {user_info_response.status_code}")
+    user_info_response = requests.get('https://www.googleapis.com/oauth2/v3/userinfo', headers=header)
+
     if user_info_response.status_code != 200:
         return Response(f"Error getting user info: {user_info_response.text}", status=status.HTTP_400_BAD_REQUEST)
     
     user_info = user_info_response.json()
     email = user_info.get('email')
 
-    print(f"Before user filter")
-    print(f"email: {email}")
-    print(f"auth user email: {AuthUser.objects.all()}")
-    print(f"auth user email: {AuthUser.objects.filter(email=email)}")
-    user = AuthUser.objects.filter(email=email)
-    print(f"After user filter: {user}")
+    user = AuthUser.objects.filter(email=email).first()
     
     if not user:
         user = AuthUser.objects.create_user(
@@ -90,8 +83,7 @@ def googleApi(request):
         user.save()
 
     # Create pinned resources for user if it doesn't exists
-    print(f"Before pinned resources")
-    pinned_resources = PinnedResourcesDashboard.objects.filter(user=user)
+    pinned_resources = PinnedResourcesDashboard.objects.filter(user=user).first()
     if not pinned_resources:
         PinnedResourcesDashboard.objects.create(user=user)
 
@@ -100,7 +92,6 @@ def googleApi(request):
 
     user.jwt_token = str(refresh.access_token)
     user.save()
-    print(f"After user save")
 
     # Only the owner can access app (Collecting emails currently)
     if email != "jayzilla195@gmail.com":
@@ -108,8 +99,7 @@ def googleApi(request):
 
     # Assign first login achievement to user
     user_achiev, create = UserAchievements.objects.get_or_create(user=user)
-    achievement = Achievements.objects.get(name="The Journey Begins")
-    print(f"Before achievement add")
+    achievement = Achievements.objects.filter(name="The Journey Begins").first()
     user_achiev.achievements.add(achievement)
     # Update streak
     # if user.last_login_date.day != timezone.now().day:
@@ -122,7 +112,6 @@ def googleApi(request):
     #         user.longest_streak = user.current_streak
     #     user.save()
 
-    print(f"Before user serializer")
     data_serialized = UserSerializer(user)
     
     try:
