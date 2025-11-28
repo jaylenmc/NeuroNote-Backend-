@@ -64,11 +64,11 @@ def googleApi(request):
 
     print(f"email: {email}")
     print(f"auth users: {AuthUser.objects.all()}")
-    print(f"auth user email: {AuthUser.objects.filter(email=email)}")
+    print(f"auth user email: {AuthUser.objects.filter(email=email)}").first()
     user = AuthUser.objects.filter(email=email)
     print(f"user (after call): {user}")
     
-    if not user:
+    if not user is None:
         user = AuthUser.objects.create_user(
             email=email,
             last_login=timezone.now(),
@@ -88,8 +88,8 @@ def googleApi(request):
 
     # Create pinned resources for user if it doesn't exists
     print(f"Before pinned resources")
-    pinned_resources = PinnedResourcesDashboard.objects.filter(user=user)
-    if not pinned_resources:
+    pinned_resources = PinnedResourcesDashboard.objects.filter(user=user).first()
+    if not pinned_resources is None:
         PinnedResourcesDashboard.objects.create(user=user)
     print(f"After pinned resources: {pinned_resources}")
 
