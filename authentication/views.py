@@ -64,8 +64,7 @@ def googleApi(request):
 
     print(f"email: {email}")
     print(f"auth users: {AuthUser.objects.all()}")
-    print(f"auth user email: {AuthUser.objects.filter(email=email)}").first()
-    user = AuthUser.objects.filter(email=email)
+    user = AuthUser.objects.filter(email=email).first()
     print(f"user (after call): {user}")
     
     if not user is None:
