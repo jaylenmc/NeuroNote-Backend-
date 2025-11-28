@@ -11,7 +11,7 @@ class DFBLUserInteraction(models.Model):
         SOCRATIC = "socratic", "Socratic"
         SUPPORTIVE = "supportive", "Supportive"
     user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
-    card = models.ForeignKey(Card, on_delete=models.CASCADE)
+    card = models.ForeignKey(Card, on_delete=models.CASCADE, null=True, blank=True)
     neuro_response = models.TextField()
 
     tutor_style = models.CharField(max_length=255, choices=TutorStyle.choices, default=TutorStyle.SOCRATIC)
