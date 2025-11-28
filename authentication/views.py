@@ -67,7 +67,7 @@ def googleApi(request):
     user = AuthUser.objects.filter(email=email).first()
     print(f"user (after call): {user}")
     
-    if not user is None:
+    if user is None:
         user = AuthUser.objects.create_user(
             email=email,
             last_login=timezone.now(),
