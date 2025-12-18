@@ -149,19 +149,10 @@ WSGI_APPLICATION = 'NeuroNote.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 REMOVED = os.environ.get("REMOVED")
-
-if REMOVED:
-    DATABASES = {
-        "default": dj_database_url.parse(REMOVED, conn_max_age=600)
-    }
-else:
-    # Local fallback
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
+print(f"REMOVED: {REMOVED}")
+DATABASES = {
+    "default": dj_database_url.parse(REMOVED, conn_max_age=600)
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

@@ -63,7 +63,7 @@ def googleApi(request):
     email = user_info.get('email')
 
     print(f"email: {email}")
-    print(f"auth users: {AuthUser.objects.all()}")
+    print(f"auth users count: {AuthUser.objects.count()}", flush=True)
     user = AuthUser.objects.filter(email=email).first()
     print(f"user (after call): {user}")
     
