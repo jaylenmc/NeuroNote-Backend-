@@ -26,7 +26,7 @@ import os
 import environ
 
 env = environ.Env(
-    DEBUG=(bool, False)
+    DEBUG=(bool, True)
 )
 
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
@@ -89,6 +89,10 @@ CORS_ALLOWED_ORIGINS = [
     'https://myneuronote.com',
     'https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app',
     'https://neuro-note-frontend-m0ztbtdm8-jaylenmcs-projects.vercel.app',
+    'www.myneuronote.com',
+    'myneuronote.com',
+    'neuro-note-frontend.vercel.app',
+    'neuro-note-frontend-9c2j25uvm-jaylenmcs-projects.vercel.app'
 ]
 
 CORS_ALLOW_METHODS = [
