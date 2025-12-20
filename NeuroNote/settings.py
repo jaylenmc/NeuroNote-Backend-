@@ -147,7 +147,7 @@ WSGI_APPLICATION = 'NeuroNote.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-REMOVED = os.environ.get("REMOVED")
+REMOVED = REMOVED
 print(f"REMOVED: {REMOVED}")
 DATABASES = {
     "default": dj_database_url.parse(REMOVED, conn_max_age=600)
