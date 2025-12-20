@@ -106,9 +106,9 @@ def googleApi(request):
     print('after unauthorized')
 
     # Assign first login achievement to user
-    user_achiev, create = UserAchievements.objects.get_or_create(user=user)
-    achievement = Achievements.objects.filter(name="The Journey Begins").first()
-    user_achiev.achievements.add(achievement)
+    # user_achiev, create = UserAchievements.objects.get_or_create(user=user)
+    # achievement = Achievements.objects.filter(name="The Journey Begins").first()
+    # user_achiev.achievements.add(achievement)
     # Update streak
     # if user.last_login_date.day != timezone.now().day:
     #     user.current_streak = 0
