@@ -40,6 +40,7 @@ class DocumentInputSerializer(serializers.Serializer):
             document.folder=folder
             document.published=data['is_published']
             document.tag=data['tag']
+            document.save()
             return document
         return document
     

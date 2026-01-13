@@ -7,13 +7,13 @@ from rest_framework.response import Response
 from rest_framework import status
 from flashcards.models import Card, Deck
 from datetime import date
-from .services import clean_claude_response
+from .services import clean_claude_response, validate_dfbl_response
 from rest_framework.decorators import permission_classes, api_view
 import json
 import tiktoken
 import os
 from .models import DFBLUserInteraction, UPSUserInteraction
-from .serializers import UPSSerializer
+from .serializers import DFBLSerializer
 
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
@@ -217,174 +217,329 @@ def cards_to_quiz(user_answers):
 
 # ------------------------------------------------ Doing + Feedback Loop ------------------------------------------------
 
-@api_view(["POST"])
-def doing_feedback_loop(request):
-    ups_serializer = UPSSerializer(data=request.data, context={"request": request})
-    if not ups_serializer.is_valid():
-        return Response({'Message': ups_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-    validated_data = ups_serializer.validated_data
-    card = Card.objects.filter(id=validated_data.get("card").id)
-    if not card:
-        return Response({'Message': 'Card not found'}, status=status.HTTP_400_BAD_REQUEST)
-    card_instance = card.first()
+class DoingFeedbackLoop(APIView):
+    def get(self, request, card_id): 
+        dfbl_interaction = DFBLUserInteraction.objects.filter(user=request.user, card_id=card_id)
 
-    tutor_style_descriptions = {
-        "strict": "A no-nonsense tutor who challenges you and pushes you hard.",
-        "friendly": "A warm, casual tutor who explains things gently and encourages you.",
-        "professional": "A polished, classroom-style instructor with clear reasoning.",
-        "speed_run": "Fast-paced, optimized explanations focusing on efficiency.",
-        "socratic": "A question-driven tutor that guides you to discover the answer.",
-        "supportive": "A motivational guide who reassures you and celebrates progress."
-    }
+        if dfbl_interaction.exists():
+            return Response(dfbl_interaction.last().attempts, status=status.HTTP_200_OK)
+        
+        return Response({"attempts: 1"}, status=status.HTTP_200_OK)
 
-    if validated_data.get("layer") == 1:
-        system = f"""
-            You are an AI study tutor. Adopt the following style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
+    def post(self, request, card_id=None):
+        dfbl_serializer = DFBLSerializer(data=request.data, context={"request": request})
 
-            Layer 1 – Quick Definition:
-            Your goal:
-            - Give a **short, super simple explanation** of the concept.
-            - Focus on defining the term or idea in the most basic way possible.
-            - Avoid details, examples, or metaphors unless absolutely necessary.
+        if not dfbl_serializer.is_valid():
+            return Response({'Message': dfbl_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
-            Now evaluate the user's answer to: "{card_instance.question}"
-            User's answer: "{validated_data.get('userAnswer')}"
-            Correct Answer: "{card_instance.answer}"
+        validated_data = dfbl_serializer.validated_data
+        card = Card.objects.filter(id=validated_data.get("card").id)
 
-            Provide:
-            - Feedback (clarity, correctness, completeness)
-            - A 1–2 sentence “Correct Answer (short version)”
-            - A simple Layer 1 explanation
-            - Decision: move to Layer 2 or stay at Layer 1
-        """
+        if not card:
+            return Response({'Message': 'Card not found'}, status=status.HTTP_400_BAD_REQUEST)
 
-    elif validated_data.get("layer") == 2:
-        system = f"""
-            You are an AI study tutor. Adopt the following style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
+        card_instance = card.first()
+        tutor_style_descriptions = {
+            "strict": "A no-nonsense tutor who challenges you and pushes you hard.",
+            "friendly": "A warm, casual tutor who explains things gently and encourages you.",
+            "professional": "A polished, classroom-style instructor with clear reasoning.",
+            "speed_run": "Fast-paced, optimized explanations focusing on efficiency.",
+            "socratic": "A question driven tutor that guides you to discover the answer.",
+            "supportive": "A motivational guide who reassures you and celebrates progress."
+        }
 
-            Layer 2 – Deeper Concept:
-            Your goal:
-            - Go deeper into the concept.
-            - Explain not just *what* it is but *how* it works and *why* it matters.
-            - Introduce key details, reasoning, or underlying mechanisms.
-            - Keep it concise; avoid overwhelming the user.
+        if validated_data.get("layer") == 1:
+            system = f"""
+                You are an AI study tutor. Adopt the following tutor style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
 
-            Evaluate the user's answer to: "{card_instance.question}"
-            User's answer: "{validated_data.get('userAnswer')}"
-            Correct Answer: "{card_instance.answer}"
+                Layer 1 - Recognition: The user must identify what the question refers to when prompted, without needing detail, structure, or justification.
 
-            Provide:
-            - Feedback (clarity, correctness, completeness)
-            - A concise “Correct Answer (medium version)”
-            - Layer 2 explanation focusing on how/why the concept works
-            - Contrast explanation for common misconceptions
-            - Decision: move to Layer 3, stay at Layer 2, or fallback to Layer 1
-        """
+                What a good answer looks like
+                •	Short
+                •	Informal is fine
+                •	Names or points to the concept correctly
+                •	No explanation required
 
-    else:
-        system = f"""
-            You are an AI study tutor. Adopt the following style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
+                CRITICAL:
+                - If you give examples and the user uses one of the examples as an answer mark you must Fail them.
+                - If you dont live up to the tutor style you adopt, your response is invalid and must be regenerated.
 
-            Layer 3 – Applied Example:
-            Your goal:
-            - Apply the concept to a real scenario, analogy, or problem.
-            - Show how the concept works in practice or why understanding it matters.
-            - Provide a concrete example that clarifies the idea.
+                Your goal:
+                - Judge whether the user understands the core idea.
 
-            Evaluate the user's answer to: "{card_instance.question}"
-            User's answer: "{validated_data.get('userAnswer')}"
-            Correct Answer: "{card_instance.answer}"
+                Evaluate the user's answer to:
+                "{card_instance.question}"
 
-            Provide:
-            - Feedback (clarity, correctness, completeness)
-            - “Correct Answer (applied version)” showing deeper understanding
-            - Layer 3 explanation with real-world example and applied reasoning
-            - Comparison-based correction if the user is confused
-            - Decision: indicate whether the user has mastered the card or should return to a previous layer
-            - Decision: move to Layer 4 or stay at Layer 3
-        """
+                User's answer:
+                "{validated_data.get('user_answer')}"
 
-    dfbl_interaction = DFBLUserInteraction.objects.filter(user=request.data.get("user")).order_by('created_at')
-    interaction_history = []
-    if dfbl_interaction.exists():
-        if card_instance.question.lower() == dfbl_interaction.last().question.lower():
-            print(f'card instance question: {card_instance.question}')
-            
-            for interaction in dfbl_interaction:
-                interaction_history.append({
-                    'role': 'user',
-                    'content': [{
-                        'type': 'text',
-                        'text': f"Question: {card_instance.question}\nCorrect answer: {card_instance.correct_answer}\nUser answer: {interaction.user_answer}\nCurrent attempt: {interaction.attempts}"
-                    }]
-                })
-                interaction_history.append({
-                    'role': 'assistant',
-                    'content': [{
-                        'type': 'text',
-                        'text': interaction.neuro_response
-                    }]
-                })
+                ABSOLUTE OUTPUT RULES (NON-NEGOTIABLE):
+                - Output MUST be valid JSON
+                - Output MUST start with '{' and end with '}'
+                - NO markdown
+                - NO backticks
+                - NO commentary outside JSON
+                - ONLY the keys: "feedback" and "decision"
+                - Values MUST be strings
+                - HTML is allowed ONLY inside string values
+                - If rules are broken, regenerate internally until valid
+                - Wrap the response in single quotes
+
+                Allowed HTML tags in feedback:
+                - <main>
+                - <p>
+                - <strong>
+                - <h1>, <h2>, <h3>, <h4>, <h5>, <h6>
+                - <ul>
+                - <ol>
+                - <li>
+                - <a>
+                - <img>
+                - <br>
+                - <hr>
+                - <blockquote>
+                - <div>
+                - <span>
+                - <table>
+                - <thead>
+                - <tbody>
+                - <tfoot>
+                - <tr>
+                - <th>
+                - <td>
+                - <code> (for code blocks)
+
+                OUTPUT FORMAT (EXACT):
+                {{"feedback": "<main>...</main>","decision": "<Pass or Fail>"}}
+
+                Feedback:
+                - Teach the topic a little, base the teaching off the tutor style you adopt. 
+                - Do NOT give the correct answer.
+            """
+
+        elif validated_data.get("layer") == 2:
+            system = f"""
+                You are an AI study tutor. Adopt the following style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
+
+                CRITICAL:
+                - If you dont live up to the tutor style you adopt, your response is invalid and must be regenerated.
+                - If you give examples and the user uses one of the examples as an answer mark you must Fail them.
+
+                Layer 2 – Structure: The user must explain the essential parts or rules that make the concept what it is.
+                
+                What a good answer looks like
+                •	Mentions key components
+                •	Describes what must exist for the concept to work
+                •	Still concise, but more detailed than Recognition
+
+                Your goal:
+                - Go deeper into the concept.
+                - Introduce key details, reasoning, or underlying mechanisms.
+                - Keep it concise; avoid overwhelming the user.
+
+                Evaluate the user's answer to: "{card_instance.question}"
+                User's answer: "{validated_data.get('user_answer')}"
+
+                ABSOLUTE OUTPUT RULES (NON-NEGOTIABLE):
+                - Output MUST be valid JSON
+                - Output MUST start with '{' and end with '}'
+                - NO markdown
+                - NO backticks
+                - NO commentary outside JSON
+                - ONLY the keys: "feedback" and "decision"
+                - Values MUST be strings
+                - HTML is allowed ONLY inside string values
+                - If rules are broken, regenerate internally until valid
+                - Wrap the response in single quotes
+
+                Allowed HTML tags in feedback:
+                - <main>
+                - <p>
+                - <strong>
+                - <h1>, <h2>, <h3>, <h4>, <h5>, <h6>
+                - <ul>
+                - <ol>
+                - <li>
+                - <a>
+                - <img>
+                - <br>
+                - <hr>
+                - <blockquote>
+                - <div>
+                - <span>
+                - <table>
+                - <thead>
+                - <tbody>
+                - <tfoot>
+                - <tr>
+                - <th>
+                - <td>
+                - <code> (for code blocks)
+
+                OUTPUT FORMAT (EXACT):
+                {{"feedback": "<main>...</main>","decision": "<Pass or Fail>"}}
+
+                Feedback:
+                - Layer 2 explanation focusing on the structure of the concept, base the explanation off the tutor style you adopt.
+                - Contrast explanation for common misconceptions
+            """
+
         else:
-            dfbl_interaction.delete()
+            system = f"""
+                You are an AI study tutor. Adopt the following style: {tutor_style_descriptions.get(validated_data.get("tutor_style"))}
 
-    interaction_history.append({
-            'role': 'user',
-            'content': [{
-                'type': 'text',
-                'text': f"Question: {validated_data.get('question')}\nCorrect answer: {validated_data.get('correct_answer')}\nUser answer: {validated_data.get('user_answer')}\nCurrent attempt: {validated_data.get('attempt_count')}"
-            }]
-        })
+                Layer 3 – Implication: Reasoning about what follows from the concept being true — consequences, effects, or constraints.
 
-    message = client.messages.create(
-        model="claude-3-7-sonnet-20250219",
-        max_tokens=3000,
-        system=system,
-        messages=interaction_history
-    )
-    validated_data['neuro_response'] = message.content[0].text
-    ups_serializer.save(validated_data=validated_data)
+                CRITICAL:
+                - If you dont live up to the tutor style you adopt, your response is invalid and must be regenerated.
+                - If you give examples and the user uses one of the examples as an answer mark you must Fail them.
 
-    return Response(message.content[0].text, status=status.HTTP_200_OK)
+                What a good answer looks like
+                •	Uses cause -> effect reasoning
+                •	Explains what the concept enables or limits
+                •	May reference outcomes, tradeoffs, or behavior
 
-    # dfbl_interaction.delete()
-    # message = client.messages.create(
-    #         model="claude-3-7-sonnet-20250219",
-    #         max_tokens=1000,
-    #         system='''
-    #             You are an expert tutor trained in cognitive science and deliberate practice.
-    #             Your goal is to help the user master understanding of a concept or question by giving high-quality,
-    #             critical feedback — without ever revealing the correct answer directly.
+                Your goal:
+                - Know this is the most important layer because its where connections are made. Make sure the user has a strong answer.
 
-    #             Your behavior and principles:
-    #                 1.	Never give away the correct answer.
-    #             Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
-    #                 2.	Be honest and direct.
-    #             If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
-    #                 3.	Be specific.
-    #             Identify what exactly is wrong or missing and why it matters.
-    #                 4.	Encourage improvement, not perfection.
-    #             Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
-    #                 5.	Foster deep learning.
-    #             Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
-    #                 6. Grade the users answer
-    #             Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
-    #             "grade" where you give a percentage.
-    #         ''',
-    #         messages=[{
-    #             "role": "user",
-    #             "content":[{"type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"}]
-    #         }]
-    # )
-    # DFBLUserInteraction.objects.create(
-    #         user=request.user,
-    #         question=request.data.get("question"),
-    #         attempts=request.data.get("attempt_count"),
-    #         correct_answer=request.data.get("correct_answer"),
-    #         user_answer=request.data.get("user_answer"),
-    #         neuro_response=message.content[0].text
-    #     )
-    # return Response(message.content[0].text, status=status.HTTP_200_OK)
+                Evaluate the user's answer to: "{card_instance.question}"
+                User's answer: "{validated_data.get('user_answer')}"
+
+                ABSOLUTE OUTPUT RULES (NON-NEGOTIABLE):
+                - Output MUST be valid JSON
+                - Output MUST start with '{' and end with '}'
+                - NO markdown
+                - NO backticks
+                - NO commentary outside JSON
+                - ONLY the keys: "feedback" and "decision"
+                - Values MUST be strings
+                - HTML is allowed ONLY inside string values
+                - If rules are broken, regenerate internally until valid
+                - Wrap the response in single quotes
+
+                Allowed HTML tags in feedback:
+                - <main>
+                - <p>
+                - <strong>
+                - <h1>, <h2>, <h3>, <h4>, <h5>, <h6>
+                - <ul>
+                - <ol>
+                - <li>
+                - <a>
+                - <img>
+                - <br>
+                - <hr>
+                - <blockquote>
+                - <div>
+                - <span>
+                - <table>
+                - <thead>
+                - <tbody>
+                - <tfoot>
+                - <tr>
+                - <th>
+                - <td>
+                - <code> (for code blocks)
+
+                OUTPUT FORMAT (EXACT):
+                {{"feedback": "<main>...</main>","decision": "<Pass or Fail>"}}
+
+                Feedback:
+                - Layer 3 explanation focusing on the implication of the concept, base the explanation off the tutor style you adopt.
+                - Contrast explanation for common misconceptions
+            """
+
+        dfbl_interaction = DFBLUserInteraction.objects.filter(user=request.user).order_by('created_at')
+        interaction_history = []
+
+        if dfbl_interaction.exists():
+
+            if card_instance.question.lower() == dfbl_interaction.last().card.question.lower() and dfbl_interaction.last().layer == validated_data.get('layer'):
+
+                validated_data['attempts'] = dfbl_interaction.last().attempts + 1
+
+                for interaction in dfbl_interaction:
+                    interaction_history.append({
+                        'role': 'user',
+                        'content': [{
+                            'type': 'text',
+                            'text': f"Question: {interaction.card.question}\nCorrect answer: {interaction.card.answer}\nUser answer: {interaction.user_answer}\nCurrent attempt: {validated_data['attempts']}"
+                        }]
+                    })
+                    interaction_history.append({
+                        'role': 'assistant',
+                        'content': [{
+                            'type': 'text',
+                            'text': interaction.neuro_response
+                        }]
+                    })
+            else:
+                validated_data['attempts'] = 1
+                dfbl_interaction.delete()
+        else:
+            validated_data['attempts'] = 1
+
+        interaction_history.append({
+                'role': 'user',
+                'content': [{
+                    'type': 'text',
+                    'text': f"Question: {card_instance.question}\nCorrect answer: {card_instance.answer}\nUser answer: {validated_data.get('user_answer')}\nCurrent attempt: {validated_data['attempts']}"
+                }]
+            })
+
+        message = client.messages.create(
+            model="claude-3-7-sonnet-20250219",
+            max_tokens=3000,
+            system=system,
+            messages=interaction_history
+        )
+        validated_response = validate_dfbl_response(message.content[0].text)
+        if isinstance(validated_response, ValueError):
+            return Response({"Message": "Feedback not formatted properly, try again"}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+        validated_data['neuro_response'] = validated_response['feedback']
+        dfbl_serializer.save(validated_data=validated_data)
+
+        return Response(message.content[0].text, status=status.HTTP_200_OK)
+
+        # dfbl_interaction.delete()
+        # message = client.messages.create(
+        #         model="claude-3-7-sonnet-20250219",
+        #         max_tokens=1000,
+        #         system='''
+        #             You are an expert tutor trained in cognitive science and deliberate practice.
+        #             Your goal is to help the user master understanding of a concept or question by giving high-quality,
+        #             critical feedback — without ever revealing the correct answer directly.
+
+        #             Your behavior and principles:
+        #                 1.	Never give away the correct answer.
+        #             Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
+        #                 2.	Be honest and direct.
+        #             If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
+        #                 3.	Be specific.
+        #             Identify what exactly is wrong or missing and why it matters.
+        #                 4.	Encourage improvement, not perfection.
+        #             Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
+        #                 5.	Foster deep learning.
+        #             Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
+        #                 6. Grade the users answer
+        #             Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
+        #             "grade" where you give a percentage.
+        #         ''',
+        #         messages=[{
+        #             "role": "user",
+        #             "content":[{"type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"}]
+        #         }]
+        # )
+        # DFBLUserInteraction.objects.create(
+        #         user=request.user,
+        #         question=request.data.get("question"),
+        #         attempts=request.data.get("attempt_count"),
+        #         correct_answer=request.data.get("correct_answer"),
+        #         user_answer=request.data.get("user_answer"),
+        #         neuro_response=message.content[0].text
+        #     )
+        # return Response(message.content[0].text, status=status.HTTP_200_OK)
 
 # ------------------------------------------------ Understanding + Problem Solving ------------------------------------------------
 

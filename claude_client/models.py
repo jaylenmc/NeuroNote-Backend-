@@ -12,7 +12,10 @@ class DFBLUserInteraction(models.Model):
         SUPPORTIVE = "supportive", "Supportive"
     user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
     card = models.ForeignKey(Card, on_delete=models.CASCADE, null=True, blank=True)
-    neuro_response = models.TextField()
+    neuro_response = models.TextField(null=True, blank=True)
+    user_answer = models.TextField(null=True, blank=True)
+    attempts = models.IntegerField(default=0)
+    layer = models.IntegerField(default=1)
 
     tutor_style = models.CharField(max_length=255, choices=TutorStyle.choices, default=TutorStyle.SOCRATIC)
 
@@ -29,7 +32,7 @@ class DFBLUserInteraction(models.Model):
     def tutor_style_descriptions():
         return {
                 UPSUserInteraction.TutorStyle.STRICT:
-                    "A no-nonsense tutor who challenges you and pushes you hard.",
+                    "A no nonsense tutor who challenges you and pushes you hard.",
                 UPSUserInteraction.TutorStyle.FRIENDLY:
                     "A warm, casual tutor who explains things gently and encourages you.",
                 UPSUserInteraction.TutorStyle.PROFESSIONAL:

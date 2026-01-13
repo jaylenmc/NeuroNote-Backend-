@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+from pickle import TRUE
 import pymysql
 from corsheaders.defaults import default_headers
 import dj_database_url
@@ -26,13 +27,13 @@ import os
 import environ
 
 env = environ.Env(
-    DEBUG=(bool, True)
+    DEBUG=(bool, False)
 )
 
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
-    'jwt_token',  # already there
+    'jwt_token',
     'content-type',
     'authorization'
 ]
@@ -147,11 +148,22 @@ WSGI_APPLICATION = 'NeuroNote.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASE_URL = os.environ.get('DATABASE_URL')
-print(f"DATABASE_URL: {DATABASE_URL}")
-DATABASES = {
-    "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)
-}
+if DEBUG == TRUE:
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    DATABASES = {
+        "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)
+    }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': env('DB_NAME'),
+            'USER': env('DB_USER'),
+            'PASSWORD': env('DB_PASSWORD'),
+            'HOST': env('DB_HOST'),
+            'PORT': env('DB_PORT'),
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

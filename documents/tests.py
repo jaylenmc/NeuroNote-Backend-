@@ -31,7 +31,7 @@ class DocumentTestCase(APITestCase):
         url = reverse('create-document')
         data = {
             'title': 'Cultural Studies 8/17/25',
-            'notes': 'Subjectivity\nIts about how to make money online and come to a conclusion about subjectivity and how us as a collective can collaborate together\nBut actually the aliens are coming to America',
+            'notes': 'Subjectivity\nIts about how we treat our subjective values',
             'folder_id': self.folder.pk,
             'tag': 'Difficult Subject',
             'is_published': False
@@ -68,8 +68,9 @@ class DocumentTestCase(APITestCase):
             status.HTTP_200_OK, 
             msg=f"Status code error: {response.data}"
             )
-        self.assertNotEqual(
-            response.data['title'], self.document.title,
+        self.assertEqual(
+            Document.objects.get(id=self.document.pk).title, 
+            data['title'],
             msg=f"Document didn't update: {response.data}"
             )
         print(response.data)
