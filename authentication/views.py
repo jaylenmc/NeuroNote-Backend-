@@ -18,11 +18,8 @@ from solostudyroom.models import PinnedResourcesDashboard
 
 @api_view(['POST'])
 def googleApi(request):
-    print("Origin:", request.headers.get("Origin"))
     code = request.data.get('code')
     error = request.data.get('error')
-    print(f"code: {code}")
-    print(f"error: {error}")
 
     if not code or error:
         return Response(f"Missing code or received error: {error}", status=status.HTTP_400_BAD_REQUEST)
@@ -38,7 +35,6 @@ def googleApi(request):
         
         access_token_url = 'https://oauth2.googleapis.com/token'
         response = requests.post(access_token_url, data=data)
-        print(f"response: {response.json()}")
         user_data = response.json()
         
         if 'error' in user_data:
@@ -62,10 +58,7 @@ def googleApi(request):
     user_info = user_info_response.json()
     email = user_info.get('email')
 
-    print(f"email: {email}")
-    print(f"auth users count: {AuthUser.objects.count()}", flush=True)
     user = AuthUser.objects.filter(email=email).first()
-    print(f"user (after call): {user}")
     
     if user is None:
         user = AuthUser.objects.create(
@@ -86,24 +79,19 @@ def googleApi(request):
         user.save()
 
     # Create pinned resources for user if it doesn't exists
-    print(f"Before pinned resources")
     pinned_resources = PinnedResourcesDashboard.objects.filter(user=user).first()
     if not pinned_resources is None:
         PinnedResourcesDashboard.objects.create(user=user)
-    print(f"After pinned resources: {pinned_resources}")
 
     refresh = RefreshToken.for_user(user)
     refresh['email'] = user.email
 
     user.jwt_token = str(refresh.access_token)
-    print(f'before user save')
     user.save()
-    print(f'after user save')
 
     # Only the owner can access app (Collecting emails currently)
     if email != "jayzilla195@gmail.com":
         return Response({'Message': 'Unauthorized'}, status=status.HTTP_401_UNAUTHORIZED)
-    print('after unauthorized')
 
     # Assign first login achievement to user
     # user_achiev, create = UserAchievements.objects.get_or_create(user=user)
@@ -134,7 +122,6 @@ def googleApi(request):
         'user': data_serialized.data,
         'jwt_refresh': str(refresh),
     }
-    print('serialized')
     
     response = Response(response_data, status=status.HTTP_200_OK)
     
