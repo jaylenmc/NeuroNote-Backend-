@@ -25,9 +25,48 @@ class ClaudeTestCase(APITestCase):
 
     def test_generate_test(self):
         url = reverse('test-gen')
-        response = self.client.post(url, data={"prompt": "Make a quiz for django basics"}, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK, msg=f"Status code error: {response.data}")
-        self.assertTrue(isinstance(response.data, dict), msg=f"Response not dict: {response.data}")
+
+        print("------------------------------------------- QT: Written -------------------------------------------")
+        data = {
+            "prompt": "Django basics",
+            "question_num": "3",
+            "quiz_type": "written"
+        }
+        response = self.client.post(url, data=data, format="json")
+        self.assertEqual(
+            response.status_code, 
+            status.HTTP_200_OK, 
+            msg=f"Status code error: {response.data}"
+        )
+        print(response.data)
+
+        print("------------------------------------------- QT: Multiple Choice -------------------------------------------")
+        data2 = {
+            "prompt": "Django basics",
+            "question_num": "2",
+            "quiz_type": "multiple choice"
+        }
+        response2 = self.client.post(url, data=data2, format="json")
+        self.assertEqual(
+            response2.status_code, 
+            status.HTTP_200_OK, 
+            msg=f"Status code error: {response2.data}"
+        )
+        print(response2.data)
+
+        print("------------------------------------------- QT: Written/Multiple Choice -------------------------------------------")
+        data3 = {
+            "prompt": "Django basics",
+            "question_num": "3",
+            "quiz_type": "written/multiple choice"
+        }
+        response3 = self.client.post(url, data=data3, format="json")
+        self.assertEqual(
+            response3.status_code, 
+            status.HTTP_200_OK, 
+            msg=f"Status code error: {response3.data}"
+        )
+        print(response3.data)
 
     # @patch('claude_client.client.client.messages.create')
     def doing_feedback_loop(self):

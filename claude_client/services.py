@@ -54,3 +54,47 @@ def validate_dfbl_response(response):
             raise ValueError("Missing or invalid HTML tag")
 
     return data
+
+def validate_quiz_generation(quiz_response):
+    try:
+        response = quiz_response.strip()
+        if response.startswith("'") and response.endswith("'"):
+            response = response[1:-1]
+        json_response = json.loads(response)
+    except json.JSONDecodeError:
+        raise ValueError("Quiz not formatted properly")
+    
+    if not all([key for key in ['quiz_title', 'quiz_subject', 'quiz_type', 'questions'] if key in json_response]):
+        raise ValueError("Missing required keys in response")
+    
+    if not json_response['quiz_title']:
+        json_response['quiz_title'] = "Generated Quiz"
+    
+    if not json_response['quiz_subject']:
+        json_response['quiz_subject'] = 'Untitled'
+
+    if not json_response['quiz_type']:
+        raise ValueError("Quiz type not provided")
+    
+    for q, i in enumerate(json_response['questions']):
+        if not q['question']:
+            raise ValueError(f"Question {i} missing a question value")
+        
+        if not q['question_type']:
+            raise ValueError(f"Question {i} is missing 'question type' value")
+
+        if q['question_type'] == 'wr':
+            if not q['answer']:
+                raise ValueError(f"Question {i} is missing answer value")
+        elif q['question_type'] == 'mc':
+            if not q['answers']:
+                raise ValueError(f"Question {i} is missing 'answers' key")
+            
+            for a in q['answers']:
+                if not a['answer']:
+                    raise ValueError(f"'answer' value is missing for an answer in question {i}'")
+
+                if not a['is_correct']:
+                    raise ValueError(f"'is_correct' value is missing for an answer in question {i}")
+    
+    return json_response

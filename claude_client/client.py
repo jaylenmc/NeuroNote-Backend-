@@ -125,60 +125,7 @@ class CardsGen(APIView):
         except Exception as e:
             return Response({'Error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def generate_quiz(request):
-    prompt = request.data.get('prompt')
-    if not prompt:
-        return Response({'Message': 'Requires prompt'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
-            max_tokens=1000,
-            temperature=0.7,
-            system = """Generate a quiz with as many multiple choice questions as needed based on the user’s prompt.
-            Format each question as JSON in the following structure:
-            {
-            "questions": [
-                {
-                "question": "What is Django?",
-                "answer_type": "mc",
-                "choices": [
-                    {"text": "A JavaScript framework", "is_correct": false},
-                    {"text": "A Python web framework", "is_correct": true},
-                    {"text": "A database management system", "is_correct": false},
-                    {"text": "A front-end design tool", "is_correct": false}
-                ]
-                }
-            ]
-            }
-            Return only the JSON object. No explanations or extra text. And make sure nothings has missing values/information""",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": prompt}]
-                }
-            ]
-        )
-        # encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
-        raw_output = message.content
-        text_output = "".join(
-            block.text for block in raw_output if getattr(block, 'type', "") == 'text'
-        )
 
-        cleaned_text = text_output.strip()
-
-        if cleaned_text.startswith("```json"):
-            cleaned_text = cleaned_text[len("```json"):].strip()
-
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text[:-3].strip()
-        data = json.loads(text_output)
-
-        return Response(data, status=status.HTTP_200_OK)
-    except Exception as e:
-            return Response({'Error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
 def cards_to_quiz(user_answers):
     if not user_answers:
@@ -214,6 +161,72 @@ def cards_to_quiz(user_answers):
         return cleaned_response
     except Exception as e:
         return {'Error': str(e)}
+    
+# ------------------------------------------------ Quiz Generator ------------------------------------------------
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_quiz(request):
+    prompt = f"""
+    Make a quiz about: {request.data.get('user_prompt')}.
+    With the preferred quiz type as {request.data.get("preferred_quiz_type", "written/multiple choice")}.
+    Create this quiz with {request.data.get("question_num", "5")} number of questions.
+    """
+
+    try:
+        message = client.messages.create(
+            model = "claude-3-7-sonnet-20250219",
+            temperature = 1,
+            system = """
+            You are a professor who's making a quiz for their student that challenges and pushes them to their limits,
+
+            Absolute MUST follow critical rules:
+            - Always make the exact amount of questions the user asks for or you must regenerate response
+            - Must Follow the exact response format otherwise the reponse is invalid and must be regenerated
+            - Only return the response as the expected JSON format wrapped in "''" otherwise the response is invalid and must be regenerated
+            
+            Response Format (Critical):
+            - Always make the quiz the preferred quiz type given, every single answer to the corresponding question must follow this preference
+            otherwise the response is invalid and needs to be regenerated. Meaning if the preferred quiz type is "Multiple Choice" or "Written"
+            then every single answer to their question must be that. If its both "written/mutliple choice" then the answers on the quiz must
+            include both written and multiple question types, this can be fully random it doesnt have to an even amount of written and multiple 
+            choice questions.
+            - The minimun number of multiple choice answers is 3 otherwise the question is invalid and needs to be regenerated
+            - If question type is multiple choice the key "is_correct" value MUST only be either "True" or "False" otherwise the answer
+            dictionary is invalid and must be regenerated
+
+            Expected JSON response format:
+            "{
+                "quiz_title": <insert title>,
+                "quiz_subject": <insert subject of quiz>,
+                "quiz_type": <insert quiz type>,
+                "questions": [
+                    {
+                        "question": <insert question>,
+                        "answer (if written question type)": <insert answer>,
+                        "question_type": <written>
+                    },
+                    {
+                        "question": <insert question>,
+                        "answers (if multiple choice question type)": [
+                            {"answer": <insert answer>, "is_correct": <True or False>},
+                            {"answer": <insert answer>, "is_correct": <True or False>},
+                            {"answer": <insert answer>, "is_correct": <True or False>},
+                            ...
+                        ],
+                        "question_type": <multiple choice>
+                    }, ...
+            }"
+
+            """,
+            messages = {
+                [{'role': 'user', 'content': prompt}]
+            }
+        )
+        response = message.content
+        return Response(response, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return Response({"Error": e}, status=status.HTTP_400_BAD_REQUEST)
 
 # ------------------------------------------------ Doing + Feedback Loop ------------------------------------------------
 
