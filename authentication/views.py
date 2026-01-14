@@ -36,6 +36,7 @@ def googleApi(request):
         access_token_url = 'https://oauth2.googleapis.com/token'
         response = requests.post(access_token_url, data=data)
         user_data = response.json()
+        print(f"user_data: {user_data}")
         
         if 'error' in user_data:
             return Response({"error": user_data.get('error_description', user_data['error'])}, status=status.HTTP_400_BAD_REQUEST)

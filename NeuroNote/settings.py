@@ -26,9 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 import os
 import environ
 
-env = environ.Env(
-    DEBUG=(bool, False)
-)
+env = environ.Env()
 
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
@@ -40,6 +38,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
+print(f'Debug: {DEBUG}')
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', "neuronote-backend-production.up.railway.app"]
@@ -153,6 +152,7 @@ if DEBUG == False:
     DATABASES = {
         "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)
     }
+    REDIRECT_URI = env('PROD_REDIRECT_URI')
 else:
     DATABASES = {
         'default': {
@@ -164,6 +164,7 @@ else:
             'PORT': env('DB_PORT'),
         }
     }
+    REDIRECT_URI = env('DEV_REDIRECT_URI')
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -215,8 +216,6 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 AUTH_USER_MODEL = 'authentication.AuthUser'
-
-REDIRECT_URI = env('REDIRECT_URI')
 
 LOGIN_URL = '/'
 
