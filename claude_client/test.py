@@ -6,6 +6,7 @@ from .models import DFBLUserInteraction, UPSUserInteraction
 from django.contrib.auth import get_user_model
 from flashcards.models import Deck, Card
 from unittest.mock import patch
+from tests.models import Quiz
 
 class ClaudeTestCase(APITestCase):
     @classmethod
@@ -23,14 +24,14 @@ class ClaudeTestCase(APITestCase):
     def setUp(self):
         self.client.force_authenticate(user=self.user)
 
-    def test_generate_test(self):
+    def test_generate(self):
         url = reverse('test-gen')
 
         print("------------------------------------------- QT: Written -------------------------------------------")
         data = {
-            "prompt": "Django basics",
+            "user_prompt": "Django basics",
             "question_num": "3",
-            "quiz_type": "written"
+            "preferred_quiz_type": "wr"
         }
         response = self.client.post(url, data=data, format="json")
         self.assertEqual(
@@ -38,13 +39,17 @@ class ClaudeTestCase(APITestCase):
             status.HTTP_200_OK, 
             msg=f"Status code error: {response.data}"
         )
+        self.assertIsNotNone(
+            Quiz.objects.filter(user=self.user)
+        )
+        print(Quiz.objects.filter(user=self.user))
         print(response.data)
 
         print("------------------------------------------- QT: Multiple Choice -------------------------------------------")
         data2 = {
-            "prompt": "Django basics",
+            "user_prompt": "Django basics",
             "question_num": "2",
-            "quiz_type": "multiple choice"
+            "preferred_quiz_type": "mc"
         }
         response2 = self.client.post(url, data=data2, format="json")
         self.assertEqual(
@@ -52,13 +57,17 @@ class ClaudeTestCase(APITestCase):
             status.HTTP_200_OK, 
             msg=f"Status code error: {response2.data}"
         )
+        self.assertIsNotNone(
+            Quiz.objects.filter(user=self.user)
+        )
+        print(Quiz.objects.filter(user=self.user))
         print(response2.data)
 
         print("------------------------------------------- QT: Written/Multiple Choice -------------------------------------------")
         data3 = {
-            "prompt": "Django basics",
+            "user_prompt": "Django basics",
             "question_num": "3",
-            "quiz_type": "written/multiple choice"
+            "preferred_quiz_type": "wrmc"
         }
         response3 = self.client.post(url, data=data3, format="json")
         self.assertEqual(
@@ -66,6 +75,10 @@ class ClaudeTestCase(APITestCase):
             status.HTTP_200_OK, 
             msg=f"Status code error: {response3.data}"
         )
+        self.assertIsNotNone(
+            Quiz.objects.filter(user=self.user)
+        )
+        print(Quiz.objects.filter(user=self.user))
         print(response3.data)
 
     # @patch('claude_client.client.client.messages.create')

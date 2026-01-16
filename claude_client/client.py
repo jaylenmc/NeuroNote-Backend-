@@ -7,13 +7,13 @@ from rest_framework.response import Response
 from rest_framework import status
 from flashcards.models import Card, Deck
 from datetime import date
-from .services import clean_claude_response, validate_dfbl_response
+from .services import clean_claude_response, validate_dfbl_response, validate_quiz_generation
 from rest_framework.decorators import permission_classes, api_view
 import json
 import tiktoken
 import os
 from .models import DFBLUserInteraction, UPSUserInteraction
-from .serializers import DFBLSerializer
+from .serializers import DFBLSerializer, TestGenerator
 
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
@@ -166,15 +166,20 @@ def cards_to_quiz(user_answers):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_quiz(request):
+    serializer = TestGenerator(data=request.data) 
+    serializer.is_valid(raise_exception=True)
+    validated_data = serializer.validated_data
+
     prompt = f"""
-    Make a quiz about: {request.data.get('user_prompt')}.
-    With the preferred quiz type as {request.data.get("preferred_quiz_type", "written/multiple choice")}.
-    Create this quiz with {request.data.get("question_num", "5")} number of questions.
+    Make a quiz about: {validated_data.get('user_prompt')}.
+    With the preferred quiz type as {validated_data.get("preferred_quiz_type", "written/multiple choice")}.
+    Create this quiz with {validated_data.get("question_num", "5")} number of questions.
     """
 
     try:
         message = client.messages.create(
             model = "claude-3-7-sonnet-20250219",
+            max_tokens=5000,
             temperature = 1,
             system = """
             You are a professor who's making a quiz for their student that challenges and pushes them to their limits,
@@ -182,51 +187,55 @@ def generate_quiz(request):
             Absolute MUST follow critical rules:
             - Always make the exact amount of questions the user asks for or you must regenerate response
             - Must Follow the exact response format otherwise the reponse is invalid and must be regenerated
-            - Only return the response as the expected JSON format wrapped in "''" otherwise the response is invalid and must be regenerated
+            - Only return valid JSON. Do not wrap it in quotes. Do not include explanations
             
             Response Format (Critical):
+            - Understand that for preferred quiz type "Multiple Choice" is abbreviated to "mc" and "written" is abbreviated to "wr"
             - Always make the quiz the preferred quiz type given, every single answer to the corresponding question must follow this preference
-            otherwise the response is invalid and needs to be regenerated. Meaning if the preferred quiz type is "Multiple Choice" or "Written"
-            then every single answer to their question must be that. If its both "written/mutliple choice" then the answers on the quiz must
-            include both written and multiple question types, this can be fully random it doesnt have to an even amount of written and multiple 
-            choice questions.
+            otherwise the response is invalid and needs to be regenerated. Meaning if the preferred quiz type is "mc (Multiple Choice)" or "wr (Written)"
+            then every single answer to their question must be that. If its both "wrmc" then the answers on the quiz must
+            include both written and multiple question types, this can be fully random it doesnt have to an even amount of wr (written) and mc (multiple 
+            choice) questions.
             - The minimun number of multiple choice answers is 3 otherwise the question is invalid and needs to be regenerated
             - If question type is multiple choice the key "is_correct" value MUST only be either "True" or "False" otherwise the answer
             dictionary is invalid and must be regenerated
 
             Expected JSON response format:
             "{
-                "quiz_title": <insert title>,
-                "quiz_subject": <insert subject of quiz>,
-                "quiz_type": <insert quiz type>,
+                "quiz_title": "insert title",
+                "quiz_subject": "insert subject of quiz",
+                "quiz_type": "mc or wr or wrmc",
                 "questions": [
                     {
-                        "question": <insert question>,
-                        "answer (if written question type)": <insert answer>,
-                        "question_type": <written>
+                        "question": "insert question",
+                        "answer (if wr (written) question type)": "insert answer",
+                        "question_type": "wr"
                     },
                     {
-                        "question": <insert question>,
-                        "answers (if multiple choice question type)": [
-                            {"answer": <insert answer>, "is_correct": <True or False>},
-                            {"answer": <insert answer>, "is_correct": <True or False>},
-                            {"answer": <insert answer>, "is_correct": <True or False>},
+                        "question": "insert question",
+                        "answers (if mc (multiple choice) question type)": [
+                            {"answer": "insert answer", "is_correct": "True or False"},
+                            {"answer": "<"insert answer", "is_correct": "<"True or False"},
+                            {"answer": "<"insert answer", "is_correct": "<"True or False"},
                             ...
                         ],
-                        "question_type": <multiple choice>
+                        "question_type": "mc"
                     }, ...
             }"
 
             """,
-            messages = {
-                [{'role': 'user', 'content': prompt}]
-            }
+            messages = [
+                {'role': 'user', 'content': prompt}
+            ]
         )
-        response = message.content
-        return Response(response, status=status.HTTP_200_OK)
-    
+        response = validate_quiz_generation(message.content[0].text)
+        merged_data = {**validated_data, **response}
+        serialized = TestGenerator(data=merged_data, context={"user": request.user})
+        serialized.is_valid(raise_exception=True)
+        serialized.save()
+        return Response(serialized, status=status.HTTP_200_OK)
     except Exception as e:
-        return Response({"Error": e}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 # ------------------------------------------------ Doing + Feedback Loop ------------------------------------------------
 

@@ -21,22 +21,27 @@ class DFBLSerializer(serializers.Serializer):
         return data
 
 class TestGenerator(serializers.Serializer):
-    prompt = serializers.CharField()
+    user_prompt = serializers.CharField()
     question_num = serializers.IntegerField()
-    quiz_type = serializers.CharField()
+    preferred_quiz_type = serializers.CharField()
 
-    def validate_quiz_type(request, value):
+    quiz_title = serializers.CharField(required=False)
+    quiz_subject = serializers.CharField(required=False)
+    quiz_type = serializers.CharField(required=False)
+    questions = serializers.ListField(required=False)
+
+    def validate_preferred_quiz_type(request, value):
         if value not in ['wr', 'mc', 'wrmc']:
             raise serializers.ValidationError("Availabe choice for quiz type is -> wr, mc, wrmc")
         
-    def create(self, data):
+    def create(self, validated_data):
         quiz = Quiz.objects.create(
-            topic=data["quiz_title"],
-            subject=data['quiz_subject'],
-            user=self.context['request'].user
+            topic=validated_data["quiz_title"],
+            subject=validated_data['quiz_subject'],
+            user=self.context['user']
         )
 
-        for q in data['questions']:
+        for q in validated_data['questions']:
             if q['question_type'] == 'wr':
                 question = Question.objects.create(
                     quiz=quiz,

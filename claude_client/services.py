@@ -55,16 +55,16 @@ def validate_dfbl_response(response):
 
     return data
 
-def validate_quiz_generation(quiz_response):
+def validate_quiz_generation(response):
     try:
-        response = quiz_response.strip()
         if response.startswith("'") and response.endswith("'"):
             response = response[1:-1]
+        print(response)
         json_response = json.loads(response)
     except json.JSONDecodeError:
         raise ValueError("Quiz not formatted properly")
     
-    if not all([key for key in ['quiz_title', 'quiz_subject', 'quiz_type', 'questions'] if key in json_response]):
+    if not all([key in json_response for key in ['quiz_title', 'quiz_subject', 'quiz_type', 'questions']]):
         raise ValueError("Missing required keys in response")
     
     if not json_response['quiz_title']:
@@ -76,25 +76,68 @@ def validate_quiz_generation(quiz_response):
     if not json_response['quiz_type']:
         raise ValueError("Quiz type not provided")
     
-    for q, i in enumerate(json_response['questions']):
-        if not q['question']:
+    if not any(quiz_type == json_response['quiz_type'] for quiz_type in ['mc', 'wr', 'wrmc']):
+        raise ValueError("Quiz type expects either one of these values: 'mc', 'wr', 'wrmc'")
+    
+    for i, question in enumerate(json_response['questions']):
+        if not question['question']:
             raise ValueError(f"Question {i} missing a question value")
         
-        if not q['question_type']:
+        if not question['question_type']:
             raise ValueError(f"Question {i} is missing 'question type' value")
+        
+        if json_response['quiz_type'] == 'wr':
+            if question['question_type'] == json_response['quiz_type']:
+                if 'answer' not in question:
+                    raise ValueError(f"Question {i} does't have 'answer' key")
+                if not question['answer']:
+                    raise ValueError(f"Question {i} is missing answer value")
+            else:
+                    raise ValueError("Question type doesn't match quiz type")
+        elif json_response['quiz_type'] == 'mc':
+            if question['question_type'] == json_response['quiz_type']:
+                if 'answers' not in question:
+                    raise ValueError(f"Question {i} missing 'answers' key")
+                if not question['answers']:
+                    raise ValueError(f"Question {i} is missing 'answers' key")
+                
+                for answer in question['answers']:
+                    if not answer['answer']:
+                        raise ValueError(f"'answer' value is missing for an answer in question {i}'")
 
-        if q['question_type'] == 'wr':
-            if not q['answer']:
-                raise ValueError(f"Question {i} is missing answer value")
-        elif q['question_type'] == 'mc':
-            if not q['answers']:
-                raise ValueError(f"Question {i} is missing 'answers' key")
-            
-            for a in q['answers']:
-                if not a['answer']:
-                    raise ValueError(f"'answer' value is missing for an answer in question {i}'")
+                    if not answer['is_correct']:
+                        raise ValueError(f"'is_correct' value is missing for an answer in question {i}")
+                    
+                    if not any([answer['is_correct'] != bool_val for bool_val in ['True', 'False']]):
+                        raise ValueError(f"Question {i} is missing boolen value in answer is_correct key")
+            else:
+                raise ValueError("Question type doesn't match quiz type")
+        elif json_response['quiz_type'] == 'wrmc':
+            question_type_list = []
+            if question['question_type'] == 'wr':
+                if 'answer' not in question:
+                    raise ValueError(f"Question {i} does't have 'answer' key")
+                if not question['answer']:
+                    raise ValueError(f"Question {i} is missing answer value")
+                question_type_list.append(question['question_type'])
+                
+            if question['question_type'] == 'mc':
+                if 'answers' not in question:
+                    raise ValueError(f"Question {i} missing 'answers' key")
+                if not question['answers']:
+                    raise ValueError(f"Question {i} is missing 'answers' key")
+                
+                for answer in question['answers']:
+                    if not answer['answer']:
+                        raise ValueError(f"'answer' value is missing for an answer in question {i}'")
 
-                if not a['is_correct']:
-                    raise ValueError(f"'is_correct' value is missing for an answer in question {i}")
-    
+                    if not answer['is_correct']:
+                        raise ValueError(f"'is_correct' value is missing for an answer in question {i}")
+                    
+                    if not any([answer['is_correct'] != bool_val for bool_val in ['True', 'False']]):
+                        raise ValueError(f"Question {i} is missing boolen value in answer is_correct key")
+                question_type_list.append(question['question_type'])
+                if not 'mc' in question_type_list and 'wr' in question_type_list:
+                    raise ValueError("Missing either 'wr' or 'mc' question type for 'wrmc' quiz")
+
     return json_response
