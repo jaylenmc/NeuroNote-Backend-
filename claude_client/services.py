@@ -56,9 +56,10 @@ def validate_dfbl_response(response):
     return data
 
 def validate_quiz_generation(response):
+    print(response.startswith("```json"), response.endswith("```"))
     try:
-        if response.startswith("'") and response.endswith("'"):
-            response = response[1:-1]
+        if response.startswith("```json") and response.endswith("```"):
+            response = response[7:-3]
         print(response)
         json_response = json.loads(response)
     except json.JSONDecodeError:

@@ -3,14 +3,16 @@ from .models import Question, Quiz, Answer, UserAnswer, QuizAttempt
 from folders.models import Folder
 from authentication.models import AuthUser
 from rest_framework.response import Response
-from .serializers import QuizSerilizer, AnswerSerializer, QuestionSerializer, QuestionReviewSerializer, AnswerReviewSerializer
+from .serializers import QuizSerilizer, AnswerSerializer, QuestionSerializer, QuestionReviewSerializer, AnswerReviewSerializer, QuizPatchSerializer
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from django.utils.timezone import now
 from django.db import transaction
+from datetime import timedelta
 from claude_client.client import cards_to_quiz
 import re
 import json
+from .services import patch_quiz
 
 class QuizView(APIView):
     permission_classes = [IsAuthenticated]
@@ -37,7 +39,8 @@ class QuizView(APIView):
                     'folder': quiz.folder.id if quiz.folder else None,
                     'question_count': question_count,
                     'last_score': round(last_attempt.score, 1) if last_attempt else None,
-                    'last_attempt': last_attempt.attempted_at.isoformat() if last_attempt else None
+                    'last_attempt': last_attempt.attempted_at.isoformat() if last_attempt else None,
+                    'time_taken': int(last_attempt.time_taken.total_seconds()) if last_attempt and last_attempt.time_taken else None
                 }
                 quiz_data.append(quiz_info)
             
@@ -75,7 +78,42 @@ class QuizView(APIView):
                 Answer.objects.bulk_create(answer_data)
 
             return Response({'Message': 'Quiz created successfully'}, status=status.HTTP_200_OK)
-    
+
+    def patch(self, request, quiz_id):
+        serializer = QuizPatchSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user_data = serializer.validated_data
+        
+        quiz = Quiz.objects.filter(user=request.user, id=quiz_id).prefetch_related('questions', 'questions__answers')
+        print(quiz)
+
+        if not quiz.exists():
+            return Response({'Message': 'Quiz not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        quiz = quiz.first()
+        quiz.topic = user_data.get('topic', quiz.topic)
+        quiz.subject = user_data.get('subject', quiz.subject)
+        quiz.save()
+
+        for question in user_data.get('questions'):
+            if 'id' in question and quiz.questions.filter(id=question['id']).exists():
+                question_obj = quiz.questions.get(id=question['id'])
+                question_obj.question_input = question.get('question_input', question_obj.question_input)
+                question_obj.question_type = question.get('question_type', question_obj.question_type)
+                question_obj.save()
+
+                patch_quiz(question, question_obj)
+
+            else:
+                question_obj = Question.objects.create(
+                    quiz=quiz,
+                    question_input=question.get('question_input', 'Untitled Question'),
+                    question_type=question.get('question_type', 'MC')
+                )
+                patch_quiz(question, question_obj)
+        return Response({'Message': 'Quiz updated successfully'}, status=status.HTTP_200_OK)
 
 class QuizQuestions(APIView):
     permission_classes = [IsAuthenticated]
@@ -198,11 +236,15 @@ class UserAnswersView(APIView):
         score_raw = (total_correct / total_question) * 100 if total_question > 0 else 0
         score = int(score_raw) if score_raw.is_integer() else round(score_raw, 1)
 
+        time_taken_seconds = request.data.get('time_taken')
+        time_taken = timedelta(seconds=int(time_taken_seconds)) if time_taken_seconds is not None else None
+
         QuizAttempt.objects.create(
             user=request.user,
             quiz_id=quiz_id,
             score=score,
-            attempted_at=now()
+            attempted_at=now(),
+            time_taken=time_taken
         )
 
         return Response({'Score': score}, status=status.HTTP_200_OK)

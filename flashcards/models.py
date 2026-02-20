@@ -89,9 +89,9 @@ class Card(models.Model):
         self.repetitions += 1
 
         # 6. Learning status
-        if interval_min < 10 * MINUTE and self.difficulty > 5.5:
+        if self.difficulty > 5.5:
             self.learning_status = Card.CardStatusOptions.STRUGGLING
-        elif interval_min > 45 * DAY // MINUTE and self.difficulty <= 4.0:
+        elif self.difficulty <= 4.0:
             self.learning_status = Card.CardStatusOptions.MASTERED
         else:
             self.learning_status = Card.CardStatusOptions.IMPROVING
@@ -105,3 +105,11 @@ class ReviewLog(models.Model):
     cards = models.ManyToManyField(Card, related_name="reviewed_cards")
     session_time = models.DurationField()
     reviewed_at = models.DateTimeField(auto_now_add=True)
+
+class DoingFeedbackReview(models.Model):
+    user=models.ForeignKey(AuthUser, on_delete=models.CASCADE)
+    card=models.ForeignKey(Card, on_delete=models.CASCADE)
+    layer_one_attempts=models.IntegerField(default=0)
+    layer_two_attempts=models.IntegerField(default=0)
+    layer_three_attempts=models.IntegerField(default=0)
+    dfbl_attempt_date=models.DateTimeField(auto_now_add=True, null=True, blank=True)

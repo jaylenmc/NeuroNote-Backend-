@@ -18,6 +18,7 @@ from .serializers import DFBLSerializer, TestGenerator
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
 ) 
+print(f"---------------------------------- Client: {client.api_key} ----------------------------------")
 
 def thinker_ai(prompt: str, user: object):
     if user.token_amount <= 0:
@@ -178,30 +179,24 @@ def generate_quiz(request):
 
     try:
         message = client.messages.create(
-            model = "claude-3-7-sonnet-20250219",
+            model = "claude-sonnet-4-6",
             max_tokens=5000,
             temperature = 1,
             system = """
             You are a professor who's making a quiz for their student that challenges and pushes them to their limits,
 
-            Absolute MUST follow critical rules:
-            - Always make the exact amount of questions the user asks for or you must regenerate response
-            - Must Follow the exact response format otherwise the reponse is invalid and must be regenerated
-            - Only return valid JSON. Do not wrap it in quotes. Do not include explanations
-            
-            Response Format (Critical):
-            - Understand that for preferred quiz type "Multiple Choice" is abbreviated to "mc" and "written" is abbreviated to "wr"
-            - Always make the quiz the preferred quiz type given, every single answer to the corresponding question must follow this preference
-            otherwise the response is invalid and needs to be regenerated. Meaning if the preferred quiz type is "mc (Multiple Choice)" or "wr (Written)"
-            then every single answer to their question must be that. If its both "wrmc" then the answers on the quiz must
-            include both written and multiple question types, this can be fully random it doesnt have to an even amount of wr (written) and mc (multiple 
-            choice) questions.
-            - The minimun number of multiple choice answers is 3 otherwise the question is invalid and needs to be regenerated
-            - If question type is multiple choice the key "is_correct" value MUST only be either "True" or "False" otherwise the answer
-            dictionary is invalid and must be regenerated
+            1. Always produce exactly the number of questions requested.
+            2. Only return valid JSON, no quotes, no explanations.
+            3. Quiz types:
+                - mc = multiple choice
+                - wr = written
+                - wrmc = both
+            4. Multiple choice answers must have at least 3 options.
+            5. Multiple choice answers must include 'is_correct' exactly "True" or "False".
+            6. Written questions must include the key 'answer'.
 
             Expected JSON response format:
-            "{
+            {
                 "quiz_title": "insert title",
                 "quiz_subject": "insert subject of quiz",
                 "quiz_type": "mc or wr or wrmc",
@@ -215,13 +210,13 @@ def generate_quiz(request):
                         "question": "insert question",
                         "answers (if mc (multiple choice) question type)": [
                             {"answer": "insert answer", "is_correct": "True or False"},
-                            {"answer": "<"insert answer", "is_correct": "<"True or False"},
-                            {"answer": "<"insert answer", "is_correct": "<"True or False"},
+                            {"answer": "insert answer", "is_correct": "True or False"},
+                            {"answer": "insert answer", "is_correct": "True or False"},
                             ...
                         ],
                         "question_type": "mc"
                     }, ...
-            }"
+            }
 
             """,
             messages = [
@@ -233,7 +228,7 @@ def generate_quiz(request):
         serialized = TestGenerator(data=merged_data, context={"user": request.user})
         serialized.is_valid(raise_exception=True)
         serialized.save()
-        return Response(serialized, status=status.HTTP_200_OK)
+        return Response(serialized.data, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -523,45 +518,6 @@ class DoingFeedbackLoop(APIView):
         dfbl_serializer.save(validated_data=validated_data)
 
         return Response(message.content[0].text, status=status.HTTP_200_OK)
-
-        # dfbl_interaction.delete()
-        # message = client.messages.create(
-        #         model="claude-3-7-sonnet-20250219",
-        #         max_tokens=1000,
-        #         system='''
-        #             You are an expert tutor trained in cognitive science and deliberate practice.
-        #             Your goal is to help the user master understanding of a concept or question by giving high-quality,
-        #             critical feedback — without ever revealing the correct answer directly.
-
-        #             Your behavior and principles:
-        #                 1.	Never give away the correct answer.
-        #             Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
-        #                 2.	Be honest and direct.
-        #             If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
-        #                 3.	Be specific.
-        #             Identify what exactly is wrong or missing and why it matters.
-        #                 4.	Encourage improvement, not perfection.
-        #             Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
-        #                 5.	Foster deep learning.
-        #             Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
-        #                 6. Grade the users answer
-        #             Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
-        #             "grade" where you give a percentage.
-        #         ''',
-        #         messages=[{
-        #             "role": "user",
-        #             "content":[{"type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"}]
-        #         }]
-        # )
-        # DFBLUserInteraction.objects.create(
-        #         user=request.user,
-        #         question=request.data.get("question"),
-        #         attempts=request.data.get("attempt_count"),
-        #         correct_answer=request.data.get("correct_answer"),
-        #         user_answer=request.data.get("user_answer"),
-        #         neuro_response=message.content[0].text
-        #     )
-        # return Response(message.content[0].text, status=status.HTTP_200_OK)
 
 # ------------------------------------------------ Understanding + Problem Solving ------------------------------------------------
 

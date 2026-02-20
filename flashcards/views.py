@@ -1,9 +1,10 @@
+from multiprocessing import context
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
-from .models import Deck, Card, ReviewLog
+from .models import Deck, Card, ReviewLog, DoingFeedbackReview
 from rest_framework.response import Response
 from rest_framework.exceptions import status
-from .serializers import DeckSerializer, CardSerializer
+from .serializers import DeckSerializer, CardSerializer, DoingFeedbackReviewSerializer
 from rest_framework.permissions import IsAuthenticated
 from authentication.models import AuthUser
 from achievements.models import UserAchievements
@@ -12,7 +13,7 @@ from django.utils import timezone
 from .services import check_past_week_cards, num_of_cards, deck_mastery_progress
 from django.db.models import Q
 from datetime import timedelta
-from .serializers import ReviewSessionInput, ReviewItemSerializer
+from .serializers import ReviewSessionInput, ReviewItemSerializer, DoingFeedbackReviewModelSerializer
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
 
@@ -219,3 +220,24 @@ class DueCardsView(APIView):
         
         serialized = CardSerializer(due_cards, many=True)
         return Response(serialized.data, status=status.HTTP_200_OK)
+
+class DoingFeedbackLoopReview(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, card_id):
+        dfbl_review = DoingFeedbackReview.objects.filter(user=request.user, card_id=card_id)
+        if dfbl_review.exists():
+            return Response({"Message": DoingFeedbackReviewModelSerializer(dfbl_review.first()).data}, status=status.HTTP_200_OK)
+        return Response({"Message": "No DFBL review found"}, status=status.HTTP_200_OK)
+
+    # Create and update dfbl review for card user is currently doing during dfbl study session
+    def patch(self, request):
+        card = Card.objects.get(id=request.data['card'])
+
+        dfbl_review = DoingFeedbackReview.objects.create(user=request.user, card=card)
+        dfbl_serializer = DoingFeedbackReviewSerializer(dfbl_review, data=request.data, context={"user": request.user}, partial=True)
+
+        if dfbl_serializer.is_valid():
+            dfbl_serializer.save()
+            return Response({"Message": "Successfully created DFBL review"}, status=status.HTTP_200_OK)
+
+        return Response(dfbl_serializer.errors, status=status.HTTP_400_BAD_REQUEST)

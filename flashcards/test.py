@@ -11,30 +11,30 @@ from freezegun import freeze_time
 
 
 class CardTestCase(APITestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
+
+    def setUp(self):
+        super().setUp()
         User = get_user_model()
-        cls.user = User.objects.create_user(email='bob@gmail.com')
-        cls.deck = Deck.objects.bulk_create([
+        self.user = User.objects.create_user(email='bob@gmail.com')
+        self.deck = Deck.objects.bulk_create([
             Deck(
-                user=cls.user,
+                user=self.user,
                 title='Test Deck',
                 subject='Test Subject'
             ),
             Deck(
-                user=cls.user,
+                user=self.user,
                 title='Test Deck2',
                 subject='Test Subject2'
             )
         ])
         time = timezone.now() - timedelta(hours=1)
 
-        cls.cards = Card.objects.bulk_create([
+        self.cards = Card.objects.bulk_create([
             Card(
                 question='How many days are in a week',
                 answer='7',
-                card_deck=cls.deck[1],
+                card_deck=self.deck[1],
                 scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.MASTERED
@@ -42,7 +42,7 @@ class CardTestCase(APITestCase):
             Card(
                 question='What is cultural studies?',
                 answer='The study of everyday life',
-                card_deck=cls.deck[1],
+                card_deck=self.deck[1],
                 scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.MASTERED
@@ -50,69 +50,67 @@ class CardTestCase(APITestCase):
             Card(
                 question='How many people are in the world?',
                 answer='Billions',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.MASTERED
             ),
             Card(
                 question='How do you make pizza?',
                 answer='With dough and sauce',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
             Card(
                 question='How do you makasdse pizsadsandkaza?',
                 answer='With dough and sauce',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
             Card(
                 question='How do you masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
             Card(
                 question='Howwewew do you masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
             Card(
                 question='How wefiewbfiw you masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
             Card(
                 question='ewrknerlw do you masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
             Card(
                 question='How do ewfeownfewo masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
             Card(
                 question='How do you masdsadadaake ewfnewofnoew?',
                 answer='With dough and sauce',
-                card_deck=cls.deck[0],
+                card_deck=self.deck[0],
                 last_review_date=time.isoformat(),
                 learning_status=Card.CardStatusOptions.STRUGGLING
             ),
         ])
-
-    def setUp(self):
         self.client.force_authenticate(user=self.user)
 
     def test_get_decks(self):
@@ -247,4 +245,31 @@ class CardTestCase(APITestCase):
             msg=f"Cards didn't save in review log: {response.data}"
         )
 
+        print(response.data)
+
+    def test_doing_feedback_review(self):
+        print("------------------------------ Doing Feedback Review *PATCH* Test ----------------------------------")
+        url = reverse('dfbl-review')
+
+        data = {
+            'card': self.cards[0].pk,
+            'layer_attempts': 34,
+            'layer': 1
+        }
+        response = self.client.patch(url, data=data, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}"
+        )
+        print(response.data)
+
+        print("------------------------------ Doing Feedback Review *GET* Test ----------------------------------")
+        url = reverse('dfbl-review-get', args=[self.cards[0].pk])
+        response = self.client.get(url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}"
+        )
         print(response.data)

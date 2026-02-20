@@ -7,6 +7,7 @@ class Quiz(models.Model):
     topic = models.CharField(max_length=255, null=True, default='Untitled')
     subject = models.CharField(max_length=255, null=True, blank=True)
     user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, null=True)
+    quiz_type = models.CharField(max_length=255, null=True, blank=True)
     folder = models.ForeignKey(Folder, on_delete=models.CASCADE, null=True, related_name='quiz')
     is_cards_to_quiz = models.BooleanField(default=False)
 
@@ -16,9 +17,10 @@ class Question(models.Model):
         ('WR', 'Written'),
     ]
 
-    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, null=True, blank=True)
+    quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, null=True, blank=True, related_name='questions')
     question_input = models.TextField(null=True)
     question_type = models.CharField(max_length=2, choices=QUESTION_TYPE_CHOICES, default='MC')
+    time_taken = models.DurationField(null=True, blank=True)
 
 class Answer(models.Model):
     question = models.ForeignKey(Question, on_delete=models.CASCADE, null=True, related_name='answers')
@@ -35,6 +37,7 @@ class QuizAttempt(models.Model):
     user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     attempted_at = models.DateTimeField(default=timezone.now)
+    time_taken = models.DurationField(null=True, blank=True)
     score = models.FloatField()
 
     def __str__(self):
