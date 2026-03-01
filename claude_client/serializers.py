@@ -42,7 +42,6 @@ class TestGenerator(serializers.Serializer):
             quiz_type=validated_data['quiz_type'],
             user=self.context['user']
         )
-        print(type(validated_data['questions']))
 
         for q in validated_data['questions']:
             print(type(q))

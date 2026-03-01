@@ -36,6 +36,7 @@ class QuizView(APIView):
                     'id': quiz.id,
                     'topic': quiz.topic,
                     'subject': quiz.subject,
+                    'quiz_type': quiz.quiz_type or None,
                     'folder': quiz.folder.id if quiz.folder else None,
                     'question_count': question_count,
                     'last_score': round(last_attempt.score, 1) if last_attempt else None,

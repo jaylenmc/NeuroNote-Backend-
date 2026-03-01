@@ -6,9 +6,16 @@ class QuizSerilizer(serializers.ModelSerializer):
         fields = ['topic', 'subject', 'folder', 'id']
         model = Quiz
 
-class QuestionSerializer(serializers.ModelSerializer):
+
+class AnswerGenerateSerializer(serializers.ModelSerializer):
     class Meta:
-        fields = ['question_input', 'question_type', 'id']
+        fields = ['answer_input', 'is_correct']
+        model = Answer
+
+class QuestionSerializer(serializers.ModelSerializer):
+    answers = AnswerGenerateSerializer(many=True)
+    class Meta:
+        fields = ['question_input', 'question_type', 'id', 'answers']
         model = Question
 
 class AnswerSerializer(serializers.ModelSerializer):

@@ -42,7 +42,6 @@ class ClaudeTestCase(APITestCase):
         self.assertIsNotNone(
             Quiz.objects.filter(user=self.user)
         )
-        print(Quiz.objects.filter(user=self.user))
         print(response.data)
 
         print("------------------------------------------- QT: Multiple Choice -------------------------------------------")
@@ -60,7 +59,6 @@ class ClaudeTestCase(APITestCase):
         self.assertIsNotNone(
             Quiz.objects.filter(user=self.user)
         )
-        print(Quiz.objects.filter(user=self.user))
         print(response2.data)
 
         print("------------------------------------------- QT: Written/Multiple Choice -------------------------------------------")
@@ -78,7 +76,6 @@ class ClaudeTestCase(APITestCase):
         self.assertIsNotNone(
             Quiz.objects.filter(user=self.user)
         )
-        print(Quiz.objects.filter(user=self.user))
         print(response3.data)
 
     # @patch('claude_client.client.client.messages.create')

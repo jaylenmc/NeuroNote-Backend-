@@ -14,11 +14,11 @@ import tiktoken
 import os
 from .models import DFBLUserInteraction, UPSUserInteraction
 from .serializers import DFBLSerializer, TestGenerator
+from tests.serializers import QuizSerilizer
 
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
 ) 
-print(f"---------------------------------- Client: {client.api_key} ----------------------------------")
 
 def thinker_ai(prompt: str, user: object):
     if user.token_amount <= 0:
@@ -224,11 +224,15 @@ def generate_quiz(request):
             ]
         )
         response = validate_quiz_generation(message.content[0].text)
+
         merged_data = {**validated_data, **response}
         serialized = TestGenerator(data=merged_data, context={"user": request.user})
+
         serialized.is_valid(raise_exception=True)
         serialized.save()
-        return Response(serialized.data, status=status.HTTP_200_OK)
+
+        quiz_serialized = QuizSerilizer(serialized.instance)
+        return Response(quiz_serialized.data, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
