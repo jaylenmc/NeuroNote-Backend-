@@ -83,7 +83,7 @@ class CardsGen(APIView):
 
         try:
             message = client.messages.create(
-                model="claude-3-7-sonnet-20250219",
+                model="claude-sonnet-4-6",
                 max_tokens=10000,
                 temperature=0.7,
                 system="Generate a list of flashcards based on the prompt. Each card should be separated by '## Card', and each card should follow this format:\n## Card\n**Front**: <front>\n**Back**: <back>. Just respond with the flashcards, no other text.",
@@ -509,7 +509,7 @@ class DoingFeedbackLoop(APIView):
             })
 
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-6",
             max_tokens=3000,
             system=system,
             messages=interaction_history
@@ -567,7 +567,7 @@ def understand_problem_solving(request):
             }]
         })
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-6",
             max_tokens=1000,
             system='''
             You are an expert educator and communication coach. Your task is to grade a student’s explanation of a concept based 
@@ -653,7 +653,7 @@ def understand_problem_solving(request):
             }]
         })
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-6",
             max_tokens=1000,
             system='''
             You are an expert educator and communication coach. Your task is to grade a student’s
