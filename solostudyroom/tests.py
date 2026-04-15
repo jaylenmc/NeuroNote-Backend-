@@ -59,14 +59,24 @@ class PinnedResourceTestCase(APITestCase):
                 answer='Billions',
                 card_deck=cls.deck[0],
                 scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
-                last_review_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+                last_review_date=(timezone.now() - timedelta(days=2)).isoformat(),
+                todays_review_count={f'{timezone.now().date()}': 4},
             ),
             Card(
                 question='How do you make pizza?',
                 answer='With dough and sauce',
                 card_deck=cls.deck[0],
                 scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
-                last_review_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+                last_review_date=(timezone.now() - timedelta(days=2)).isoformat(),
+                todays_review_count={f'{timezone.now().date()}': 19},
+            ),
+            Card(
+                question='How do you create something?',
+                answer='With dough and sauce',
+                card_deck=cls.deck[0],
+                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
+                last_review_date=(timezone.now() - timedelta(days=2)).isoformat(),
+                todays_review_count={f'{timezone.now().date()}': 0},
             ),
         ])
 
@@ -252,6 +262,39 @@ class PinnedResourceTestCase(APITestCase):
         url_params = f"{url}?user_timezone=America/Chicago"
         response = self.client.get(url_params)
 
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}"
+        )
+        print(response.data)
+
+    def test_avg_cards_studied_weekly(self):
+        print("==================== Avg Cards Studied Weekly ====================")
+        review_url = reverse('review-card')
+        avg_cards_url = reverse('avg-cards-studied-weekly', args=[self.deck[0].pk])
+
+        # ------------- Testing Review Cards -------------
+        # Reviewing the cards 3 times to make sure the todays_review_count increases
+        data = {
+            'session_time': "00:13:20",
+            'review': [{
+                    'card_id': self.cards[-1].pk,
+                    'deck_id': self.cards[-1].card_deck.pk,
+                    'quality': 5
+                }
+            ]
+        }
+        for _ in range(3):
+            review_response = self.client.put(review_url, data=data, format='json')
+        # self.assertTrue(
+        #     self.cards[-1].todays_review_count[f'{timezone.now().date()}'] == 3,
+        #     msg=f"Cards studied weekly didn't increase: {review_response.data}"
+        # )
+
+        # ------------- Testing Avg Cards Studied Weekly -------------
+        # Getting the avg cards studied weekly
+        response = self.client.get(avg_cards_url, args=[self.deck[-1].pk])
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,

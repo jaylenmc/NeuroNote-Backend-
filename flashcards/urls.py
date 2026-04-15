@@ -15,5 +15,5 @@ urlpatterns = [
     path('review/', views.review_card, name='review-card'),
 
     path('doing-feedback-review/', views.DoingFeedbackLoopReview.as_view(), name='dfbl-review'),
-    path('doing-feedback-review/<int:card_id>/', views.DoingFeedbackLoopReview.as_view(), name='dfbl-review-get')
+    path('doing-feedback-review/<int:card_id>/', views.DoingFeedbackLoopReview.as_view(), name='dfbl-review-get'),
 ]

@@ -16,6 +16,7 @@ from datetime import timedelta
 from .serializers import ReviewSessionInput, ReviewItemSerializer, DoingFeedbackReviewModelSerializer
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
+from solostudyroom.models import AvgCardStudiedWeekly
 
 class DeckCollection(APIView):
     permission_classes = [IsAuthenticated]
@@ -173,6 +174,19 @@ class CardCollection(APIView):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def review_card(request):
+    avg_card_studied_weekly_obj = AvgCardStudiedWeekly.objects.filter(user=request.user)
+
+    if not avg_card_studied_weekly_obj.exists():        
+        daily_review_dict = {}
+        for i in range(8):
+            day = (timezone.now() - timedelta(days=i)).date()
+            daily_review_dict[f'{day}'] = 0
+        avg_card_studied_weekly_obj = AvgCardStudiedWeekly.objects.create(user=request.user, avg_cards_studied_weekly=daily_review_dict)
+        avg_card_studied_weekly_obj.save()
+
+    else:
+        avg_card_studied_weekly_obj = avg_card_studied_weekly_obj.first()
+
     card_input_serializer = ReviewSessionInput(data=request.data, context={"method": request.method})
     if card_input_serializer.is_valid():
         validated_data = card_input_serializer.validated_data
@@ -193,7 +207,7 @@ def review_card(request):
             card_info['deck_id'] = card_info['deck_id'].id
             card_info['card_id'] = card_info['card_id'].id
 
-            card_input_serializer = ReviewItemSerializer(instance=instance, data=card_info, partial=True, context={"user": request.user})
+            card_input_serializer = ReviewItemSerializer(instance=instance, data=card_info, partial=True, context={"user": request.user, "avg_card_studied_weekly": avg_card_studied_weekly_obj})
             card_input_serializer.is_valid(raise_exception=True)
             card_input_serializer.save()
 

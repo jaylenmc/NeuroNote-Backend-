@@ -34,6 +34,7 @@ class Card(models.Model):
     difficulty = models.FloatField(default=5.0)
     stability = models.FloatField(default=1440.0)
 
+    todays_review_count = models.JSONField(default=dict)
     last_review_date = models.DateTimeField(null=True, blank=True)
     scheduled_date = models.DateTimeField(null=True, blank=True)
 

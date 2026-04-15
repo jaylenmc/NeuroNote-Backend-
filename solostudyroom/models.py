@@ -8,3 +8,7 @@ class PinnedResourcesDashboard(models.Model):
     document = models.ManyToManyField(Document, blank=True)
     file = models.ManyToManyField(FileUpload, blank=True)
     link = models.ManyToManyField(LinkUpload, blank=True)
+
+class AvgCardStudiedWeekly(models.Model):
+    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
+    avg_cards_studied_weekly = models.JSONField(default=dict)
