@@ -5,7 +5,6 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from .services import check_content_num
-from authentication.models import AuthUser
 from .serializers import FolderInputSerializer, FolderPostSerializer
 
 class FolderView(APIView):

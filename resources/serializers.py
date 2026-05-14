@@ -1,12 +1,12 @@
 from rest_framework import serializers
 from .models import FileUpload, LinkUpload, ResourceTypes
 from authentication.serializers import UserSerializer
-from authentication.models import AuthUser
+from django.contrib.auth import get_user_model
 
 class ResourceInputSerializer(serializers.Serializer):
     user = serializers.PrimaryKeyRelatedField(
         required=True,
-        queryset=AuthUser.objects.all()
+        queryset=get_user_model().objects.all()
     )
     file_upload = serializers.FileField(required=False)
     link_upload = serializers.URLField(required=False)
@@ -14,7 +14,7 @@ class ResourceInputSerializer(serializers.Serializer):
     title = serializers.CharField(required=False)
     
     def validate_user(self, value):
-        if not AuthUser.objects.filter(email=value).exists():
+        if not get_user_model().objects.filter(email=value).exists():
             raise serializers.ValidationError("User doesn't exist")
         return value
     

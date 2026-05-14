@@ -1,9 +1,9 @@
 from django.db import models
-from authentication.models import AuthUser
 from django.utils import timezone 
 from datetime import timedelta
 import math
 from .utils import reward_xp
+from django.conf import settings
 
 MINUTE   = 60                     
 HOUR     = 60 * MINUTE
@@ -16,7 +16,7 @@ class Deck(models.Model):
     mastery_progress = models.FloatField(default=0)
     is_mastered = models.BooleanField(default=False)
 
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
 
 class Card(models.Model):
     class CardStatusOptions(models.TextChoices):
@@ -102,13 +102,13 @@ class Card(models.Model):
         self.save()
 
 class ReviewLog(models.Model):
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, related_name="user_review_log")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_review_log")
     cards = models.ManyToManyField(Card, related_name="reviewed_cards")
     session_time = models.DurationField()
     reviewed_at = models.DateTimeField(auto_now_add=True)
 
 class DoingFeedbackReview(models.Model):
-    user=models.ForeignKey(AuthUser, on_delete=models.CASCADE)
+    user=models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     card=models.ForeignKey(Card, on_delete=models.CASCADE)
     layer_one_attempts=models.IntegerField(default=0)
     layer_two_attempts=models.IntegerField(default=0)

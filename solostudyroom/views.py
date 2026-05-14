@@ -15,7 +15,7 @@ from flashcards.models import ReviewLog
 from datetime import timedelta
 from flashcards.models import Deck
 from django.utils import timezone
-from solostudyroom.models import AvgCardStudiedWeekly
+from flashcards.models import ReviewLog
 
 class PinnedResourceClass(APIView):
     permission_classes = [IsAuthenticated]
@@ -115,15 +115,15 @@ def studyroom_stats(request):
     return Response(stats, status=status.HTTP_200_OK)
 
 @api_view(["GET"])
-def avg_cards_studied_weekly(request, deck_id):
-    avg_card_studied_weekly = AvgCardStudiedWeekly.objects.filter(user=request.user)
+def avg_cards_studied_weekly(request):
+    last_week = timezone.now() - timedelta(days=7)
+    review_logs = ReviewLog.objects.filter(user=request.user, reviewed_at__range=(last_week, timezone.now()))
+    avg_cards_studied_weekly = {}
 
-    if not avg_card_studied_weekly.exists():
-        daily_review_dict = {}
-        for i in range(8):
-            day = (timezone.now() - timedelta(days=i)).date()
-            daily_review_dict[f'{day}'] = 0
-        avg_card_studied_weekly = AvgCardStudiedWeekly.objects.create(user=request.user, avg_cards_studied_weekly=daily_review_dict)
-        return Response(avg_card_studied_weekly.avg_cards_studied_weekly, status=status.HTTP_200_OK)
-    else:
-        return Response(avg_card_studied_weekly.first().avg_cards_studied_weekly, status=status.HTTP_200_OK)
+    for i in range(7):
+        avg_cards_studied_weekly[str((timezone.now() - timedelta(days=i)).date())] = 0
+
+    for log in review_logs:
+        avg_cards_studied_weekly[str(log.reviewed_at.date())] += log.cards.count()
+
+    return Response(avg_cards_studied_weekly, status=status.HTTP_200_OK)

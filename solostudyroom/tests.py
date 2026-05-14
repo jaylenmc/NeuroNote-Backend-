@@ -272,21 +272,22 @@ class PinnedResourceTestCase(APITestCase):
     def test_avg_cards_studied_weekly(self):
         print("==================== Avg Cards Studied Weekly ====================")
         review_url = reverse('review-card')
-        avg_cards_url = reverse('avg-cards-studied-weekly', args=[self.deck[0].pk])
+        avg_cards_url = reverse('avg-cards-studied-weekly')
 
         # ------------- Testing Review Cards -------------
         # Reviewing the cards 3 times to make sure the todays_review_count increases
+        print(self.cards)
         data = {
             'session_time': "00:13:20",
             'review': [{
-                    'card_id': self.cards[-1].pk,
-                    'deck_id': self.cards[-1].card_deck.pk,
+                    'card_id': card.pk,
+                    'deck_id': card.card_deck.pk,
                     'quality': 5
-                }
-            ]
+                } for card in self.cards]
         }
-        for _ in range(3):
-            review_response = self.client.put(review_url, data=data, format='json')
+
+        self.client.put(review_url, data=data, format='json')
+
         # self.assertTrue(
         #     self.cards[-1].todays_review_count[f'{timezone.now().date()}'] == 3,
         #     msg=f"Cards studied weekly didn't increase: {review_response.data}"
@@ -294,7 +295,7 @@ class PinnedResourceTestCase(APITestCase):
 
         # ------------- Testing Avg Cards Studied Weekly -------------
         # Getting the avg cards studied weekly
-        response = self.client.get(avg_cards_url, args=[self.deck[-1].pk])
+        response = self.client.get(avg_cards_url)
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,

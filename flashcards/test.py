@@ -2,12 +2,12 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from .models import Card, Deck, ReviewLog
-from authentication.models import AuthUser
 from django.utils import timezone
 from datetime import timedelta, datetime
 from zoneinfo import ZoneInfo
 from django.urls import reverse
 from freezegun import freeze_time
+from django.contrib.auth import get_user_model
 
 
 class CardTestCase(APITestCase):
@@ -228,7 +228,7 @@ class CardTestCase(APITestCase):
             f'Status code error: {response.data}'
             )
         self.assertTrue(
-            AuthUser.objects.get(email=self.user.email).xp > 0,
+            get_user_model().objects.get(email=self.user.email).xp > 0,
             msg=f"User xp didn't increase: {response.data}"
         )
         

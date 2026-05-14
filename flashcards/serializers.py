@@ -3,7 +3,6 @@ from .models import Deck, Card
 from .services import deck_mastery_progress
 from .models import DoingFeedbackReview
 from django.utils import timezone
-from solostudyroom.models import AvgCardStudiedWeekly
 
 class ReviewItemSerializer(serializers.Serializer):
     card_id = serializers.PrimaryKeyRelatedField(queryset=Card.objects.all())
@@ -13,27 +12,7 @@ class ReviewItemSerializer(serializers.Serializer):
     def update(self, instance, data):
         instance.update_sm21(data['quality'])
         deck_mastery_progress(self.context['user'], data['deck_id'].id)
-        '''
-        Making sure we're not adding to the todays_review_count
-        if the date is'nt today, if it's any other day than the previously
-        added count...we create a new entry for the current day
-        '''
-        if list(instance.todays_review_count.keys())[0] == f"{timezone.now().date()}":
-            instance.todays_review_count[f"{timezone.now().date()}"] += 1
-        else:
-            instance.todays_review_count[f"{timezone.now().date()}"] = 1
-        print(instance.todays_review_count[f"{timezone.now().date()}"])
-        instance.save()
-        '''
-        avg_card_studied_weekly is meant to keep track of the cards studied in the
-        past week, we locate the specific day in the avg_cards_studied_weekly with
-        todays date and add this instance's todays_review_count on to the total of
-        the cards reviewed for the day.
-        '''
-        avg_card_studied_weekly = self.context['avg_card_studied_weekly']
-        avg_card_studied_weekly.avg_cards_studied_weekly[f"{timezone.now().date()}"] -= (instance.todays_review_count[f"{timezone.now().date()}"] - 1)
-        avg_card_studied_weekly.avg_cards_studied_weekly[f"{timezone.now().date()}"] += instance.todays_review_count[f"{timezone.now().date()}"]
-        avg_card_studied_weekly.save()
+
         return "Cards successfully reviewed"
 
 class ReviewSessionInput(serializers.Serializer):

@@ -1,14 +1,10 @@
 from django.db import models
-from authentication.models import AuthUser
+from django.conf import settings
 from documents.models import Document
 from resources.models import FileUpload, LinkUpload
 
 class PinnedResourcesDashboard(models.Model):
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     document = models.ManyToManyField(Document, blank=True)
     file = models.ManyToManyField(FileUpload, blank=True)
     link = models.ManyToManyField(LinkUpload, blank=True)
-
-class AvgCardStudiedWeekly(models.Model):
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
-    avg_cards_studied_weekly = models.JSONField(default=dict)

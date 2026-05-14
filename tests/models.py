@@ -1,12 +1,12 @@
 from django.db import models
-from authentication.models import AuthUser
+from django.conf import settings
 from folders.models import Folder
 from django.utils import timezone
 
 class Quiz(models.Model):
     topic = models.CharField(max_length=255, null=True, default='Untitled')
     subject = models.CharField(max_length=255, null=True, blank=True)
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
     quiz_type = models.CharField(max_length=255, null=True, blank=True)
     folder = models.ForeignKey(Folder, on_delete=models.CASCADE, null=True, related_name='quiz')
     is_cards_to_quiz = models.BooleanField(default=False)
@@ -28,13 +28,13 @@ class Answer(models.Model):
     is_correct = models.BooleanField(null=True, blank=True)
 
 class UserAnswer(models.Model):
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     question = models.ForeignKey(Question, on_delete=models.CASCADE)
     selected_answer = models.ForeignKey(Answer, on_delete=models.CASCADE)
     written_answer = models.TextField(null=True, blank=True)
 
 class QuizAttempt(models.Model):
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE)
     attempted_at = models.DateTimeField(default=timezone.now)
     time_taken = models.DurationField(null=True, blank=True)

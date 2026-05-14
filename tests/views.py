@@ -1,7 +1,6 @@
 from rest_framework.views import APIView
 from .models import Question, Quiz, Answer, UserAnswer, QuizAttempt
 from folders.models import Folder
-from authentication.models import AuthUser
 from rest_framework.response import Response
 from .serializers import QuizSerilizer, AnswerSerializer, QuestionSerializer, QuestionReviewSerializer, AnswerReviewSerializer, QuizPatchSerializer
 from rest_framework import status

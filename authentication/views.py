@@ -3,8 +3,8 @@ from rest_framework.response import Response
 from django.http import JsonResponse
 import requests
 from django.conf import settings
-from .models import AuthUser
-from .serializers import UserSerializer
+from django.contrib.auth import get_user_model
+from .serializers import UserSerializer, NeuroUserSerialzier
 from django.utils import timezone
 from datetime import datetime, timedelta, timezone as dt_timezone
 from zoneinfo import ZoneInfo
@@ -15,6 +15,9 @@ from rest_framework_simplejwt.serializers import TokenRefreshSerializer
 from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from solostudyroom.models import PinnedResourcesDashboard
+from rest_framework.views import APIView
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
 
 @api_view(['POST'])
 def googleApi(request):
@@ -59,10 +62,10 @@ def googleApi(request):
     user_info = user_info_response.json()
     email = user_info.get('email')
 
-    user = AuthUser.objects.filter(email=email).first()
+    user = get_user_model().objects.filter(email=email).first()
     
     if user is None:
-        user = AuthUser.objects.create(
+        user = get_user_model().objects.create(
             email=email,
             last_login=timezone.now(),
             google_access_token=user_access_token,
@@ -181,3 +184,25 @@ class CookieTokenRefreshView(TokenRefreshView):
         serializer = TokenRefreshSerializer(data={'refresh': refresh_token})
         serializer.is_valid(raise_exception=True)
         return Response(serializer.validated_data)
+    
+class NeuroCreateUser(APIView):
+    def post(self, request):
+        user_email = request.data.get("email")
+        user_password = request.data.get("password")
+        login_method = request.data.get("login_method")
+
+        if login_method == "signin":
+            print(f"Auth User: {dir(get_user_model())[123]}")
+            print(f"User: {User.objects}")
+            user = User.objects.create_user(email=user_email, password=user_password)
+            serialized = NeuroUserSerialzier(user)
+            return Response(serialized.data, status=status.HTTP_201_CREATED)
+        elif login_method == "login":
+            auth_user = authenticate(email=user_email, password=user_password)
+            if authenticate:
+                serialized = NeuroUserSerialzier(auth_user)
+                return Response(serialized.data, status=status.HTTP_200_OK)
+            else:
+                return Response({"Message:", "User not authenticated"}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            return Response({"Error", "'login_method' required ('signin' or 'login')"}, status=status.HTTP_400_BAD_REQUEST)

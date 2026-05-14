@@ -1,5 +1,5 @@
 from rest_framework.test import APITestCase
-from .models import AuthUser
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from datetime import timedelta
 from django.urls import reverse
@@ -11,7 +11,7 @@ class AuthUserTests(APITestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.user = AuthUser.objects.create_user(
+        cls.user = get_user_model().objects.create_user(
             email='test@gmail.com',
             password='12345',
         )
@@ -73,3 +73,19 @@ class AuthUserTests(APITestCase):
             msg=f"Status code error: {response.data}"
             )
         print(f'Response Data: {response.data}')
+
+    def NeuroAuth(self):
+        endpoint = reverse("neuro-create-user")
+        data = {
+            'email': "bob123@hotmail.com",
+            'password': "password123",
+            'login_method': 'signin'
+        }
+        response = self.client.post(endpoint, data, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=response.data
+        )
+
+        print(response)
