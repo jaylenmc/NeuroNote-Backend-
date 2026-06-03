@@ -64,7 +64,8 @@ INSTALLED_APPS = [
     'chat',
     'studyroom',
     'resources',
-    'solostudyroom'
+    'solostudyroom',
+    'neuro_profile'
 ]
 
 REST_FRAMEWORK = {
@@ -224,3 +225,5 @@ MEDIA_ROOT =  BASE_DIR / 'media'
 SECRET_KEY = env('SECRET_KEY')
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
+
+AUTH_USER_MODEL = 'authentication.User'

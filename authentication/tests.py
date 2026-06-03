@@ -6,6 +6,7 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch
+from neuro_profile.models import NeuroProfile
 
 class AuthUserTests(APITestCase):
     @classmethod
@@ -72,20 +73,52 @@ class AuthUserTests(APITestCase):
             response.status_code,
             msg=f"Status code error: {response.data}"
             )
+        self.assertTrue(
+            NeuroProfile.objects.filter(user=self.user).exists(),
+            msg=f"NeuroProfile not created: {response.data}"
+            )
         print(f'Response Data: {response.data}')
 
-    def NeuroAuth(self):
-        endpoint = reverse("neuro-create-user")
-        data = {
-            'email': "bob123@hotmail.com",
-            'password': "password123",
-            'login_method': 'signin'
+class CustomUserTest(APITestCase):
+    def test_custom_user_model(self):
+        url = reverse('neuro-create-user')
+
+        correct_data = {
+            'email': "johndoe05@gmail.com",
+            'password': "gibberish"
         }
-        response = self.client.post(endpoint, data, format='json')
+
+        missing_pw_data = {
+            'email': "johnddsfoesd05@gmail.com"
+        }
+
+        faulty_email_data = {
+            'email': 'jamal93gmail.com',
+            'password': "gibberish"
+        }
+        
+        correct_response = self.client.post(url, data=correct_data, format='json')
         self.assertEqual(
-            response.status_code,
+            correct_response.status_code,
             status.HTTP_200_OK,
-            msg=response.data
+            msg=f"Error -> {correct_response.data}"
+        )
+        self.assertIn('username', correct_response.data)
+        self.assertIn('email', correct_response.data)
+        self.assertEqual(correct_response.data['email'], correct_data['email'])
+        self.assertNotIn('password', correct_response.data)
+
+        missing_pw_response = self.client.post(url, data=missing_pw_data, format='json')
+        self.assertEqual(
+            missing_pw_response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            msg=f"Error -> {missing_pw_response.data}"
         )
 
-        print(response)
+        faulty_email_response = self.client.post(url, data=faulty_email_data, format='json')
+        self.assertEqual(
+            faulty_email_response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            msg=f"Error -> {faulty_email_response.data}"
+        )
+        
