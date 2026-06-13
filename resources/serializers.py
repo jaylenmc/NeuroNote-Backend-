@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import FileUpload, LinkUpload, ResourceTypes
-from authentication.serializers import UserSerializer
 from django.contrib.auth import get_user_model
 
 class ResourceInputSerializer(serializers.Serializer):

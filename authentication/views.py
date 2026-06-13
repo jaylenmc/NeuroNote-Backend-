@@ -1,22 +1,14 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from django.http import JsonResponse
 import requests
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from .serializers import UserSerializer, AuthUserModelSerializer, NeuroUserSerialzier
-from django.utils import timezone
+from .serializers import AuthUserModelSerializer, GoogleAuthUserModelSerializer
 from datetime import datetime, timedelta, timezone as dt_timezone
-from zoneinfo import ZoneInfo
-from django.contrib.auth import logout
 from rest_framework import status
-from achievements.models import UserAchievements, Achievements
-from rest_framework_simplejwt.serializers import TokenRefreshSerializer
-from rest_framework_simplejwt.views import TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
-from solostudyroom.models import PinnedResourcesDashboard
 from rest_framework.views import APIView
-from neuro_profile.models import NeuroProfile
+from .services import save_user
 
 @api_view(['POST'])
 def googleApi(request):
@@ -41,95 +33,42 @@ def googleApi(request):
         
         if 'error' in user_data:
             return Response({"error": user_data.get('error_description', user_data['error'])}, status=status.HTTP_400_BAD_REQUEST)
-        
-        user_access_token = user_data.get('access_token')
-        user_expires_in = datetime.now(dt_timezone.utc) + timedelta(seconds=user_data.get('expires_in'))
-        user_refresh_token = user_data.get('refresh_token')
 
     except requests.exceptions.RequestException as e:
         return Response({"error": f"Error getting access token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
     
-    header = {
-        'Authorization': f'Bearer {user_access_token}'
-    }
-    user_info_response = requests.get('https://www.googleapis.com/oauth2/v3/userinfo', headers=header)
+    user_info_response = requests.get(
+        'https://www.googleapis.com/oauth2/v3/userinfo', 
+        headers={
+        'Authorization': f'Bearer {user_data['access_token']}'
+    })
 
     if user_info_response.status_code != 200:
         return Response(f"Error getting user info: {user_info_response.text}", status=status.HTTP_400_BAD_REQUEST)
     
     user_info = user_info_response.json()
-    email = user_info.get('email')
 
-    user = get_user_model().objects.filter(email=email).first()
-    
-    if user is None:
-        user = get_user_model().objects.create(
-            email=email,
-            last_login=timezone.now(),
-            google_access_token=user_access_token,
-            access_token_expires_at=user_expires_in,
-            google_refresh_token=user_refresh_token,
-            )
-        
-    else:
-        user.email = email
-        user.google_access_token = user_access_token
-        user.last_login=timezone.now()
-        user.access_token_expires_at = user_expires_in
-        if user_refresh_token:
-            user.google_refresh_token = user_refresh_token
-        user.save()
-
-    # Create pinned resources for user if it doesn't exists
-    pinned_resources = PinnedResourcesDashboard.objects.filter(user=user)
-    if not pinned_resources.exists():
-        PinnedResourcesDashboard.objects.create(user=user)
-
-    refresh = RefreshToken.for_user(user)
-    refresh['email'] = user.email
-
-    user.save()
-
-    neuro_profile = NeuroProfile.objects.create(user=user)
-    neuro_profile.jwt_token = str(refresh.access_token)
-    neuro_profile.save()
-
-    data_serialized = UserSerializer(user)
-    
-    try:
-        if is_token_expired(user):
-            access_token = refreshAccessToken(user)
-            if isinstance(access_token, Response):
-                return access_token
-    except Exception as e:
-        return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    user_data = {key: value for key, value in data_serialized.data.items() if key not in [
-        'password', 'groups', 'user_permissions', 'is_active', 'is_staff', 
-        'is_superuser', 'last_login', 'date_joined'
-        ]}
-    
-    response_data = {
-        'user': user_data,
-        'jwt_refresh': str(refresh),
+    data = {
+        'email': user_info['email'],
+        'google_access_token': user_data['access_token'],
     }
+
+    save_user_data = save_user(data)
+    save_user_data['user']['google_refresh_token'] = user_data['refresh_token']
+
+    return Response(save_user_data, status=status.HTTP_200_OK)
+
+@api_view(['POST'])
+def refresh_google_access_token(request):
+    if not request.data.get('refresh_token'):
+        return Response({'Message': 'No refresh token found in request.'}, status=status.HTTP_400_BAD_REQUEST)
     
-    response = Response(response_data, status=status.HTTP_200_OK)
-
-    return response
-
-def is_token_expired(user):
-    current_time = datetime.now(dt_timezone.utc)
-    refresh_threshold = timedelta(minutes=5)
-    return current_time >= (user.access_token_expires_at - refresh_threshold)
-        
-def refreshAccessToken(user):
     refresh_token_url = 'https://oauth2.googleapis.com/token'
     data = {
         'client_id': settings.GOOGLE_CLIENT_ID,
         'client_secret': settings.GOOGLE_CLIENT_SECRET,
         'grant_type': 'refresh_token',
-        'refresh_token': user.refresh_token,
+        'refresh_token': request.data.get('refresh_token'),
     }
 
     try:
@@ -150,26 +89,37 @@ def refreshAccessToken(user):
     except Exception as e:
         return Response({"detail": f"Error refreshing access token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
     
-class CookieTokenRefreshView(TokenRefreshView):
-    def post(self, request, *args, **kwargs):
-        # Get from cookies during production
-        # refresh_token = request.COOKIES.get('refresh_token')
-
-        # Get from body during development
-        refresh_token = request.data.get('refresh_token')
-        if not refresh_token:
-            return Response({'detail': 'No refresh token found in cookies'}, status=status.HTTP_401_UNAUTHORIZED)
-        
-        serializer = TokenRefreshSerializer(data={'refresh': refresh_token})
-        serializer.is_valid(raise_exception=True)
-        return Response(serializer.validated_data)
-    
 class NeuroCreateUser(APIView):
     def post(self, request):
+        auth_type = request.query_params.get('type')
+        if auth_type not in ('signin', 'login'):
+            return Response(
+                {'Message': 'Query parameter "type" is required and must be "signin" or "login".'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         serializer = AuthUserModelSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return Response(
-            {"username": user.username, "email": user.email},
-            status=status.HTTP_200_OK,
-        )
+
+        email = serializer.validated_data['email']
+        password = serializer.validated_data['password']
+        User = get_user_model()
+
+        if auth_type == 'login':
+            user = User.objects.filter(email=email).first()
+            if not user or not user.check_password(password):
+                return Response(
+                    {'detail': 'Invalid email or password.'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+            return Response(generate_jwt_neuroprof(user), status=status.HTTP_200_OK)
+
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {'detail': 'User with this email already exists.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        create_kwargs = {'email': email, 'password': password}
+        user = User.objects.create_user(**create_kwargs)
+        return Response(generate_jwt_neuroprof(user), status=status.HTTP_201_CREATED)

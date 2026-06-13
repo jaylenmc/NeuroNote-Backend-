@@ -25,4 +25,3 @@ class User(AbstractUser):
 
     access_token_expires_at = models.DateTimeField(blank=True, null=True)
     google_access_token = models.CharField(null=True)
-    google_refresh_token = models.CharField(null=True)
