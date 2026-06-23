@@ -1,22 +1,44 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
+import secrets
+import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from .serializers import AuthUserModelSerializer, GoogleAuthUserModelSerializer
+from .serializers import AuthUserModelSerializer
 from datetime import datetime, timedelta, timezone as dt_timezone
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.views import APIView
-from .services import save_user
+from .services import save_user, authenticate_google_user
 
-@api_view(['POST'])
+OAUTH_STATE_COOKIE = 'oauth_state'
+
+@api_view(['GET'])
 def googleApi(request):
-    code = request.data.get('code')
-    error = request.data.get('error')
+    error = request.query_params.get('error')
+    if error:
+        return Response(
+            {'detail': f'OAuth error: {error}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    if not code or error:
-        return Response(f"Missing code or received error: {error}", status=status.HTTP_400_BAD_REQUEST)
+    returned_state = request.query_params.get('state')
+    stored_state = request.COOKIES.get(OAUTH_STATE_COOKIE)
+
+    if not returned_state or not stored_state or not secrets.compare_digest(
+        returned_state, stored_state
+    ):
+        return Response(
+            {'detail': 'OAuth state mismatch.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    code = request.query_params.get('code')
+    if not code:
+        return Response(
+            {'detail': 'Missing authorization code.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     try:
         data = {
@@ -26,37 +48,46 @@ def googleApi(request):
             'client_id': settings.GOOGLE_CLIENT_ID,
             'client_secret': settings.GOOGLE_CLIENT_SECRET,
         }
-        
+
         access_token_url = 'https://oauth2.googleapis.com/token'
-        response = requests.post(access_token_url, data=data)
-        user_data = response.json()
-        
-        if 'error' in user_data:
-            return Response({"error": user_data.get('error_description', user_data['error'])}, status=status.HTTP_400_BAD_REQUEST)
+        token_response = requests.post(access_token_url, data=data)
+        google_token_info = token_response.json()
+
+        if 'error' in google_token_info:
+            return Response(
+                {
+                    'error': google_token_info.get(
+                        'error_description', google_token_info['error']
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     except requests.exceptions.RequestException as e:
-        return Response({"error": f"Error getting access token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    user_info_response = requests.get(
-        'https://www.googleapis.com/oauth2/v3/userinfo', 
-        headers={
-        'Authorization': f'Bearer {user_data['access_token']}'
-    })
+        return Response(
+            {'error': f'Error getting access token: {str(e)}'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    if user_info_response.status_code != 200:
-        return Response(f"Error getting user info: {user_info_response.text}", status=status.HTTP_400_BAD_REQUEST)
-    
-    user_info = user_info_response.json()
+    id_token = google_token_info.get('id_token')
+    google_access_token = google_token_info.get('access_token')
 
-    data = {
-        'email': user_info['email'],
-        'google_access_token': user_data['access_token'],
-    }
+    if not id_token or not google_access_token:
+        return Response(
+            {'detail': 'Missing id_token or access_token from Google.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
-    save_user_data = save_user(data)
-    save_user_data['user']['google_refresh_token'] = user_data['refresh_token']
+    try:
+        save_user_data = authenticate_google_user(id_token, google_access_token)
+    except jwt.InvalidTokenError as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
 
-    return Response(save_user_data, status=status.HTTP_200_OK)
+    save_user_data['user']['google_refresh_token'] = google_token_info.get('refresh_token')
+
+    response = Response(save_user_data, status=status.HTTP_200_OK)
+    response.delete_cookie(OAUTH_STATE_COOKIE, path='/')
+    return response
 
 @api_view(['POST'])
 def refresh_google_access_token(request):
@@ -76,16 +107,11 @@ def refresh_google_access_token(request):
         token_info = response.json()
 
         if token_info.get('error') == "invalid_grant":
-            logout(user)
             return Response({'Detail': 'Login expired. Please sign in again.'}, status=status.HTTP_401_UNAUTHORIZED)
         elif token_info.get('error'):
             return Response({'Detail': f"Error during new access token process: {token_info['error_description']}"}, status=status.HTTP_400_BAD_REQUEST)
 
-        user.access_token = token_info['access_token']
-        user.access_token_expires_at = datetime.now(dt_timezone.utc) + timedelta(seconds=token_info['expires_in'])
-        user.save()
-
-        return token_info['access_token']
+        return Response({'access_token': token_info['access_token']}, status=status.HTTP_200_OK)
     except Exception as e:
         return Response({"detail": f"Error refreshing access token: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -112,7 +138,7 @@ class NeuroCreateUser(APIView):
                     {'detail': 'Invalid email or password.'},
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
-            return Response(generate_jwt_neuroprof(user), status=status.HTTP_200_OK)
+            return Response(save_user(user), status=status.HTTP_200_OK)
 
         if User.objects.filter(email=email).exists():
             return Response(
@@ -122,4 +148,4 @@ class NeuroCreateUser(APIView):
 
         create_kwargs = {'email': email, 'password': password}
         user = User.objects.create_user(**create_kwargs)
-        return Response(generate_jwt_neuroprof(user), status=status.HTTP_201_CREATED)
+        return Response(save_user(user), status=status.HTTP_201_CREATED)

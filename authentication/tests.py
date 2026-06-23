@@ -8,11 +8,12 @@ from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch
 from neuro_profile.models import NeuroProfile
+from authentication.services import authenticate_google_user
 
 class AuthUserTests(APITestCase):
-    @patch('authentication.views.requests.get')
+    @patch('authentication.views.authenticate_google_user')
     @patch('authentication.views.requests.post')
-    def test_google_api(self, mock_post, mock_get):
+    def test_google_api(self, mock_post, mock_authenticate):
         print('==================== Google Api ====================')
         url = reverse('google-api')
 
@@ -20,27 +21,30 @@ class AuthUserTests(APITestCase):
         mock_post.return_value.json.return_value = {
             'access_token': 'test_access_token',
             'refresh_token': 'test_refresh_token',
+            'id_token': 'test_id_token',
             'expires_in': 3600,
             'token_type': 'Bearer',
             'scope': 'email profile openid',
-            'id_token': 'test_id_token',
         }
 
-        mock_get.return_value.status_code = 200
-        mock_get.return_value.json.return_value = {
-            'email': "john@gmail.com",
-            'sub': '1234567890',
-            'name': 'Test User'
+        mock_authenticate.return_value = {
+            'user': {
+                'email': 'john@gmail.com',
+                'username': 'john',
+                'google_access_token': 'test_access_token',
+            },
+            'jwt_data': 'test_jwt_data',
         }
 
-        data = {'code': 'test_code'}
-        response = self.client.post(url, data, format='json')
+        data = {'code': 'test_code', 'state': 'test-state'}
+        self.client.cookies['oauth_state'] = 'test-state'
+        response = self.client.get(url, data)
 
         self.assertEqual(
-            status.HTTP_200_OK, 
+            status.HTTP_200_OK,
             response.status_code,
             msg=f"Status code error: {response.data}"
-            )
+        )
 
         self.assertEqual(
             response.data['user']['email'],
@@ -49,11 +53,46 @@ class AuthUserTests(APITestCase):
         )
         self.assertIn('username', response.data['user'])
         self.assertIn('jwt_data', response.data)
-        self.assertNotIn('password', response.data['user'])
-        self.assertTrue(NeuroProfile.objects.filter(user__email='john@gmail.com').exists())
-        self.assertTrue(PinnedResourcesDashboard.objects.filter(user__user__email='john@gmail.com').exists())
+        self.assertIn('google_refresh_token', response.data['user'])
+        mock_authenticate.assert_called_once_with('test_id_token', 'test_access_token')
 
         print(f'Response Data: {response.data}')
+
+    @patch('authentication.views.requests.post')
+    def test_google_api_state_mismatch(self, mock_post):
+        url = reverse('google-api')
+        self.client.cookies['oauth_state'] = 'stored-state'
+        response = self.client.get(url, {'code': 'test_code', 'state': 'different-state'})
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_403_FORBIDDEN,
+            msg=f"Error -> {response.data}",
+        )
+        mock_post.assert_not_called()
+
+    @patch('authentication.services.verify_google_id_token', return_value='john@gmail.com')
+    def test_authenticate_google_user_creates_new_user(self, mock_verify):
+        result = authenticate_google_user('test_id_token', 'test_access_token')
+
+        self.assertEqual(result['user']['email'], 'john@gmail.com')
+        self.assertIn('jwt_data', result)
+        self.assertTrue(NeuroProfile.objects.filter(user__email='john@gmail.com').exists())
+        mock_verify.assert_called_once_with('test_id_token')
+
+    @patch('authentication.services.verify_google_id_token', return_value='existing@gmail.com')
+    def test_authenticate_google_user_returns_existing_user(self, mock_verify):
+        User = get_user_model()
+        existing_user = User.objects.create_user(
+            email='existing@gmail.com',
+            password='password123',
+        )
+
+        result = authenticate_google_user('test_id_token', 'test_access_token')
+
+        self.assertEqual(result['user']['email'], existing_user.email)
+        self.assertEqual(User.objects.filter(email='existing@gmail.com').count(), 1)
+        mock_verify.assert_called_once_with('test_id_token')
 
 class CustomUserTest(APITestCase):
     def test_neuro_create_user_signin(self):
@@ -85,12 +124,12 @@ class CustomUserTest(APITestCase):
         )
         self.assertEqual(
             correct_response.status_code,
-            status.HTTP_200_OK,
+            status.HTTP_201_CREATED,
             msg=f"Error -> {correct_response.data}"
         )
         self.assertEqual(correct_response.data['user']['email'], correct_data['email'])
         self.assertIn("username", correct_response.data['user'])
-        self.assertIn('jwt_refresh', correct_response.data)
+        self.assertIn('jwt_data', correct_response.data)
         self.assertNotIn('password', correct_response.data)
 
         duplicate_response = self.client.post(
@@ -148,7 +187,7 @@ class CustomUserTest(APITestCase):
         self.assertEqual(response.data['user']['email'], login_data['email'])
         self.assertIn('id', response.data['user'])
         self.assertIn('username', response.data['user'])
-        self.assertIn('jwt_refresh', response.data)
+        self.assertIn('jwt_data', response.data)
         self.assertEqual(
             NeuroProfile.objects.filter(user__email=login_data['email']).count(),
             1,

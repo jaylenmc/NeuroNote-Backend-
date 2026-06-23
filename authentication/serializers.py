@@ -5,7 +5,7 @@ from django.core.validators import validate_email
 class GoogleAuthUserModelSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
-        fields = ['google_access_token', 'email', 'username']
+        fields = ['id', 'google_access_token', 'email', 'username']
 
     def create(self, validated_data):
         return get_user_model().objects.create_user(**validated_data)
