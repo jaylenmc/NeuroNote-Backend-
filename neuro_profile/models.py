@@ -11,8 +11,6 @@ class NeuroProfile(models.Model):
     primary_key=True,
     )
 
-    jwt_token = models.CharField(null=True)
-
     plan = models.CharField(max_length=255, default='Note Taker')
     token_amount = models.IntegerField(default=1000)
 

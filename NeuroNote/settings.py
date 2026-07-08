@@ -156,7 +156,7 @@ if DEBUG == False:
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql',
+            'ENGINE': 'django.db.backends.postgresql', 
             'NAME': env('DB_NAME'),
             'USER': env('DB_USER'),
             'PASSWORD': env('DB_PASSWORD'),
@@ -164,7 +164,7 @@ else:
             'PORT': env('DB_PORT'),
         }
     }
-    REDIRECT_URI = env('DEV_REDIRECT_URI')
+    REDIRECT_URI = env('DEV_CLIENT_REDIRECT_URI')
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

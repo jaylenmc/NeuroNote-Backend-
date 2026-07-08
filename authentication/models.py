@@ -22,6 +22,3 @@ class User(AbstractUser):
     USERNAME_FIELD = 'email'
 
     objects = CustomManager()
-
-    access_token_expires_at = models.DateTimeField(blank=True, null=True)
-    google_access_token = models.CharField(null=True)

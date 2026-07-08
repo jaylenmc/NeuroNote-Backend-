@@ -9,12 +9,12 @@ from .serializers import AuthUserModelSerializer
 from datetime import datetime, timedelta, timezone as dt_timezone
 from rest_framework import status
 from rest_framework.views import APIView
-from .services import save_user, authenticate_google_user
-
-OAUTH_STATE_COOKIE = 'oauth_state'
+from .services import save_user, verify_google_id_token
+from rest_framework_simplejwt.tokens import RefreshToken
 
 @api_view(['GET'])
 def googleApi(request):
+    oauth_state_cookie = 'oauth_state'
     error = request.query_params.get('error')
     if error:
         return Response(
@@ -22,16 +22,17 @@ def googleApi(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    returned_state = request.query_params.get('state')
-    stored_state = request.COOKIES.get(OAUTH_STATE_COOKIE)
+    # returned_state = request.query_params.get('state')
+    # stored_state = request.COOKIES.get(oauth_state_cookie)
+    # print(stored_state)
 
-    if not returned_state or not stored_state or not secrets.compare_digest(
-        returned_state, stored_state
-    ):
-        return Response(
-            {'detail': 'OAuth state mismatch.'},
-            status=status.HTTP_403_FORBIDDEN,
-        )
+    # if not returned_state or not stored_state or not secrets.compare_digest(
+    #     returned_state, stored_state
+    # ):
+    #     return Response(
+    #         {'detail': 'OAuth state mismatch.'},
+    #         status=status.HTTP_403_FORBIDDEN,
+    #     )
 
     code = request.query_params.get('code')
     if not code:
@@ -40,53 +41,37 @@ def googleApi(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    try:
-        data = {
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': settings.REDIRECT_URI,
-            'client_id': settings.GOOGLE_CLIENT_ID,
-            'client_secret': settings.GOOGLE_CLIENT_SECRET,
-        }
+    data = {
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': settings.REDIRECT_URI,
+        'client_id': settings.GOOGLE_CLIENT_ID,
+        'client_secret': settings.GOOGLE_CLIENT_SECRET,
+    }
 
-        access_token_url = 'https://oauth2.googleapis.com/token'
-        token_response = requests.post(access_token_url, data=data)
-        google_token_info = token_response.json()
+    access_token_url = 'https://oauth2.googleapis.com/token'
+    token_response = requests.post(access_token_url, data=data)
+    google_token_info  = token_response.json()
+    print(google_token_info)
 
-        if 'error' in google_token_info:
-            return Response(
-                {
-                    'error': google_token_info.get(
-                        'error_description', google_token_info['error']
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-    except requests.exceptions.RequestException as e:
+    if 'error' in google_token_info:
         return Response(
-            {'error': f'Error getting access token: {str(e)}'},
+            {'error': google_token_info.get('error_description', google_token_info['error'])},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
     id_token = google_token_info.get('id_token')
-    google_access_token = google_token_info.get('access_token')
 
-    if not id_token or not google_access_token:
+    if not id_token:
         return Response(
-            {'detail': 'Missing id_token or access_token from Google.'},
+            {'detail': 'Missing id_token.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    try:
-        save_user_data = authenticate_google_user(id_token, google_access_token)
-    except jwt.InvalidTokenError as exc:
-        return Response({'detail': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
-
-    save_user_data['user']['google_refresh_token'] = google_token_info.get('refresh_token')
+    save_user_data = verify_google_id_token(id_token)
 
     response = Response(save_user_data, status=status.HTTP_200_OK)
-    response.delete_cookie(OAUTH_STATE_COOKIE, path='/')
+    response.delete_cookie(oauth_state_cookie, path='/')
     return response
 
 @api_view(['POST'])
@@ -118,34 +103,44 @@ def refresh_google_access_token(request):
 class NeuroCreateUser(APIView):
     def post(self, request):
         auth_type = request.query_params.get('type')
-        if auth_type not in ('signin', 'login'):
-            return Response(
-                {'Message': 'Query parameter "type" is required and must be "signin" or "login".'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
         serializer = AuthUserModelSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
         User = get_user_model()
-
-        if auth_type == 'login':
-            user = User.objects.filter(email=email).first()
-            if not user or not user.check_password(password):
+        if auth_type == 'login':            
+            user = User.objects.filter(email=email).exists()
+            if not user:
                 return Response(
-                    {'detail': 'Invalid email or password.'},
+                    {'detail': 'User with this email does not exist.'},
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
-            return Response(save_user(user), status=status.HTTP_200_OK)
 
-        if User.objects.filter(email=email).exists():
+            user = User.objects.filter(email=email).first()
+
+            if not user.check_password(password):
+                return Response(
+                    {'detail': 'Invalid password.'},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+
+            jwt_data = RefreshToken.for_user(user)
+
+            return Response({
+                "user": serializer.data, 
+                "jwt_data": {
+                    "access": str(jwt_data.access_token),
+                    "refresh": str(jwt_data),
+                }}, status=status.HTTP_200_OK)
+        elif auth_type == 'signup':
+            if User.objects.filter(email=email).exists():
+                return Response(
+                    {'detail': 'User with this email already exists.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            return Response(save_user({"email": email, "password": password}, auth_provider='password'), status=status.HTTP_201_CREATED)
+        else:
             return Response(
-                {'detail': 'User with this email already exists.'},
-                status=status.HTTP_400_BAD_REQUEST,
+                {'Message': 'Query parameter "type" is required and must be "signup" or "login".'},
+                status=status.HTTP_400_BAD_REQUEST
             )
-
-        create_kwargs = {'email': email, 'password': password}
-        user = User.objects.create_user(**create_kwargs)
-        return Response(save_user(user), status=status.HTTP_201_CREATED)
