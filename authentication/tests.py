@@ -84,7 +84,6 @@ class CustomUserTest(APITestCase):
 
     def test_neuro_create_user_login_incorrect_email(self):
         url = reverse('neuro-create-user')
-        User = get_user_model()
 
         login_data = {
             'email': 'incorrectuser@gmail.com',
@@ -136,7 +135,6 @@ class CustomUserTest(APITestCase):
     
     def test_neuro_create_user_signup_incorrect_email(self):
         url = reverse('neuro-create-user')
-        User = get_user_model()
 
         login_data = {
             'email': 'incorrectusergmail.com',
@@ -151,7 +149,6 @@ class CustomUserTest(APITestCase):
     
     def test_neuro_create_user_signup_incorrect_password(self):
         url = reverse('neuro-create-user')
-        User = get_user_model()
 
         login_data = {
             'email': 'newuser@gmail.com',

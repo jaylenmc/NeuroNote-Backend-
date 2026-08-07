@@ -38,13 +38,14 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
-print(f'Debug: {DEBUG}')
+
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', "neuronote-backend-production.up.railway.app"]
 
 # Application definition
 INSTALLED_APPS = [
+    'django_extensions',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

@@ -14,25 +14,12 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 @api_view(['GET'])
 def googleApi(request):
-    oauth_state_cookie = 'oauth_state'
     error = request.query_params.get('error')
     if error:
         return Response(
             {'detail': f'OAuth error: {error}'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
-    # returned_state = request.query_params.get('state')
-    # stored_state = request.COOKIES.get(oauth_state_cookie)
-    # print(stored_state)
-
-    # if not returned_state or not stored_state or not secrets.compare_digest(
-    #     returned_state, stored_state
-    # ):
-    #     return Response(
-    #         {'detail': 'OAuth state mismatch.'},
-    #         status=status.HTTP_403_FORBIDDEN,
-    #     )
 
     code = request.query_params.get('code')
     if not code:
@@ -52,7 +39,6 @@ def googleApi(request):
     access_token_url = 'https://oauth2.googleapis.com/token'
     token_response = requests.post(access_token_url, data=data)
     google_token_info  = token_response.json()
-    print(google_token_info)
 
     if 'error' in google_token_info:
         return Response(
@@ -71,7 +57,6 @@ def googleApi(request):
     save_user_data = verify_google_id_token(id_token)
 
     response = Response(save_user_data, status=status.HTTP_200_OK)
-    response.delete_cookie(oauth_state_cookie, path='/')
     return response
 
 @api_view(['POST'])
@@ -88,7 +73,7 @@ def refresh_google_access_token(request):
     }
 
     try:
-        response = requests.post(refresh_token_url, data=data)
+        response = requests.pos(refresh_token_url, data=data)
         token_info = response.json()
 
         if token_info.get('error') == "invalid_grant":
@@ -102,12 +87,14 @@ def refresh_google_access_token(request):
     
 class NeuroCreateUser(APIView):
     def post(self, request):
-        auth_type = request.query_params.get('type')
         serializer = AuthUserModelSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
+
         User = get_user_model()
+        auth_type = request.query_params.get('type')
         if auth_type == 'login':            
             user = User.objects.filter(email=email).exists()
             if not user:
