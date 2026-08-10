@@ -1,6 +1,7 @@
 from django.db import models
 from documents.models import Document
 from django.conf import settings
+from neuro_profile.models import NeuroProfile
 
 class ResourceTypes(models.TextChoices):
         TEXTBOOK = "textbook", "Textbook"
@@ -34,3 +35,8 @@ class FileUpload(models.Model):
     resource_type = models.CharField(choices=ResourceTypes.choices, max_length=8)
     file_type = models.CharField(choices=FileTypes.choices, max_length=4)
     
+class PinnedResourcesDashboard(models.Model):
+    user = models.OneToOneField(NeuroProfile, on_delete=models.CASCADE)
+    document = models.ManyToManyField(Document, blank=True)
+    file = models.ManyToManyField(FileUpload, blank=True)
+    link = models.ManyToManyField(LinkUpload, blank=True)

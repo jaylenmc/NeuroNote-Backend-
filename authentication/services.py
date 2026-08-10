@@ -4,7 +4,7 @@ from jwt import PyJWKClient
 from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import GoogleAuthUserModelSerializer, AuthUserModelSerializer
 from neuro_profile.models import NeuroProfile
-from neuro_profile.models import PinnedResourcesDashboard
+from resources.models import PinnedResourcesDashboard
 from .models import User
 
 def save_neuro_profile(user: User):
