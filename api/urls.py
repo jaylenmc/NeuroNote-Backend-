@@ -10,4 +10,5 @@ urlpatterns = [
     path('documents/', include('documents.urls')),
     path('studyroom/', include('studyroom.urls')),
     path('resources/', include('resources.urls')),
+    path("neuroprofile/", include("neuro_profile.urls"))
 ]

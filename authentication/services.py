@@ -8,8 +8,12 @@ from neuro_profile.models import PinnedResourcesDashboard
 from .models import User
 
 def save_neuro_profile(user: User):
-    if not NeuroProfile.objects.filter(user=user).exists():
+    neuro_profile = NeuroProfile.objects.filter(user=user)
+    if not neuro_profile.exists():
         neuro_profile = NeuroProfile.objects.create(user=user)
+    else:
+        neuro_profile = neuro_profile.first()
+        print(neuro_profile)
 
     if not PinnedResourcesDashboard.objects.filter(user=neuro_profile).exists():
         PinnedResourcesDashboard.objects.create(user=neuro_profile)
@@ -21,7 +25,7 @@ def save_user(user: dict, auth_provider: str) -> dict:
         user_data_serializer = GoogleAuthUserModelSerializer(data=user)
     else:
         raise ValueError(f'Invalid auth provider: {auth_provider}')
-
+    
     user_data_serializer.is_valid(raise_exception=True)
     user_obj = user_data_serializer.save()
 

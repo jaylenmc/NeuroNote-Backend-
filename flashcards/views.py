@@ -1,4 +1,4 @@
-from multiprocessing import context
+from neuro_profile.models import NeuroProfile
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
 from .models import Deck, Card, ReviewLog, DoingFeedbackReview
@@ -38,12 +38,12 @@ class DeckCollection(APIView):
                 updated_decks.append(new_deck)
 
             user = get_user_model().objects.filter(email=request.user.email).first()
+            neuro_profile = NeuroProfile.objects.get(user=user)
             serialized = DeckSerializer(updated_decks, many=True)
 
             data = {
                 'decks': serialized.data,
-                'xp': user.xp,
-                'level': user.level
+                'xp': neuro_profile.xp
             }
 
             return Response(data, status=status.HTTP_200_OK)

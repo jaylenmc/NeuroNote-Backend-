@@ -53,7 +53,6 @@ def googleApi(request):
             {'detail': 'Missing id_token.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-
     save_user_data = verify_google_id_token(id_token)
 
     response = Response(save_user_data, status=status.HTTP_200_OK)

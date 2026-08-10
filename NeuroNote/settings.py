@@ -221,9 +221,14 @@ LOGIN_URL = '/'
 MEDIA_URL = '/media/'
 MEDIA_ROOT =  BASE_DIR / 'media'
 
-# Try to read from .env file, but don't fail if it doesn't exist
+# Google Auth Credentials
 SECRET_KEY = env('SECRET_KEY')
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
+
+# Railway Bucket Credentials
+AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
+AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
+AWS_ENDPOINT_URL= env("AWS_ENDPOINT_URL")
 
 AUTH_USER_MODEL = 'authentication.User'

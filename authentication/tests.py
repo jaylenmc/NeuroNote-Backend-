@@ -1,18 +1,16 @@
 from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
-from neuro_profile.models import PinnedResourcesDashboard
-from django.utils import timezone
-from datetime import timedelta
 from django.urls import reverse
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
 from unittest.mock import patch
-from neuro_profile.models import NeuroProfile
-import jwt
 from unittest.mock import MagicMock
-from authentication.services import verify_google_id_token
+from neuro_profile.models import NeuroProfile, PinnedResourcesDashboard
 
 class AuthUserTests(APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.fake_email = "john@gmail.com"
+    
     @patch('authentication.services.PyJWKClient')
     @patch('authentication.services.jwt.decode')
     @patch('authentication.views.requests.post')
@@ -32,13 +30,13 @@ class AuthUserTests(APITestCase):
 
         signing_key = MagicMock(key='test-key')
         mock_PyJWKClient.return_value.get_signing_key_from_jwt.return_value = signing_key
+
         mock_decode.return_value = {
-            'email': 'john@gmail.com',
+            'email': self.fake_email,
             'iss': 'https://accounts.google.com',
         }
 
-        data = {'code': 'test_code', 'state': 'test-state'}
-        self.client.cookies['oauth_state'] = 'test-state'
+        data = {'code': 'test_code'}
         response = self.client.get(url, data)
 
         self.assertEqual(
@@ -48,13 +46,60 @@ class AuthUserTests(APITestCase):
         )
 
         self.assertEqual(
-            response.data['user']['email'],
-            'john@gmail.com',
-            msg=f"User email error: {response.data['user']['email']}"
+            response.data['user']["email"],
+            self.fake_email,
+            msg=f"User email error: {response.data['user']["email"]}"
+        )
+        self.assertIn('username', response.data['user'])
+        self.assertEqual(response.data["user"]["username"], self.fake_email.split("@")[0])
+        self.assertIn('jwt_data', response.data)
+        user = get_user_model().objects.get(email=self.fake_email)
+        self.assertTrue(NeuroProfile.objects.filter(user=user))
+    
+    @patch('authentication.services.PyJWKClient')
+    @patch('authentication.services.jwt.decode')
+    @patch('authentication.views.requests.post')
+    def test_google_api_email_in_db(self, mock_post, mock_decode, mock_PyJWKClient):
+        print('==================== Google Api Email In DB ====================')
+        url = reverse('google-api')
+
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            'access_token': 'test_access_token',
+            'refresh_token': 'test_refresh_token',
+            'id_token': 'test_id_token',
+            'expires_in': 3600,
+            'token_type': 'Bearer',
+            'scope': 'email profile openid',
+        }
+
+        signing_key = MagicMock(key='test-key')
+        mock_PyJWKClient.return_value.get_signing_key_from_jwt.return_value = signing_key
+
+        get_user_model().objects.create_user(email=self.fake_email)
+        mock_decode.return_value = {
+            'email': self.fake_email,
+            'iss': 'https://accounts.google.com',
+        }
+
+        data = {'code': 'test_code'}
+        response = self.client.get(url, data)
+
+        self.assertEqual(
+            status.HTTP_200_OK,
+            response.status_code,
+            msg=f"Status code error: {response.data}"
+        )
+
+        self.assertEqual(
+            response.data['user']["email"],
+            self.fake_email,
+            msg=f"User email error: {response.data['user']["email"]}"
         )
         self.assertIn('username', response.data['user'])
         self.assertIn('jwt_data', response.data)
-        self.assertNotIn('google_refresh_token', response.data['user'])
+        user = get_user_model().objects.get(email=self.fake_email)
+        self.assertTrue(NeuroProfile.objects.filter(user=user))
 
 class CustomUserTest(APITestCase):
     def test_neuro_create_user_login_correct_credentials(self):

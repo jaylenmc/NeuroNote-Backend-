@@ -2,7 +2,6 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path("pinned/", views.PinnedResourceClass.as_view(), name="pinned-resources"),
-    path("delete/<int:obj_id>/", views.PinnedResourceClass.as_view(), name="delete-resource"),
-    path("create/", views.PinnedResourceClass.as_view(), name="create-pinned-resource")
+    path("files/", views.PresignedUrls.as_view(), name="presigned-urls"),
+    path("files/<str:bucket_name>/<str:object_name>/<str:region_name>/", views.PresignedUrls.as_view(), name="presigned-urls"),
 ]
