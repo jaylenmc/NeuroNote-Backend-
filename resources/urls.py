@@ -1,13 +1,16 @@
 from django.urls import path
 from resources import views
-from django.conf import settings
-from django.conf.urls.static import static
 
 urlpatterns = [
-    path('create/', views.ImportResource.as_view(), name='create-resource'),
-    path('link/<int:id>/', views.ImportResource.as_view(), name='get-link'),
-    path('delete/<int:id>/', views.ImportResource.as_view(), name='delete-resource'),
+    # PDF Resource endpoints
+    path('pdf/<int:id>/', views.PDFResource.as_view(), name='pdf-get-delete'),
+    # Link Resource endpoints
+    path('link/', views.LinkResource.as_view(), name='link-post'),
+    path('link/<int:id>', views.LinkResource.as_view(), name='link-get'),
+    path('link/delete/<int:id>/', views.LinkResource.as_view(), name='link-delete'),
     # Presigned URLs for S3
-    path("files/", views.PresignedUrls.as_view(), name="presigned-urls"),
-    path("files/<str:bucket_name>/<str:object_name>/<str:region_name>/", views.PresignedUrls.as_view(), name="presigned-urls"),
+    path("files/", views.PresignedUrls.as_view(), name="presigned-urls-post"),
+    path("files/<int:id>/", views.PresignedUrls.as_view(), name="presigned-urls-get"),
+    # All Resources
+    path('all/', views.all_resources, name="all-resources")
 ]

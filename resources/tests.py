@@ -2,210 +2,291 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from rest_framework import status
-from .models import LinkUpload
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import override_settings
-import tempfile
-from .models import LinkUpload
-from rest_framework.test import APITestCase
-from django.contrib.auth import get_user_model
-from django.urls import reverse
-from rest_framework import status
+from .models import LinkUpload, PDFUpload
+from resources.models import PinnedResourcesDashboard
+from neuro_profile.models import NeuroProfile
 
-@override_settings(MEDIA_ROOT=tempfile.gettempdir())
-class ResourceTestCase(APITestCase):
+class LinkTestCase(APITestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        User = get_user_model()
-        cls.user = User.objects.create(email='test@gmail.com')
+        cls.user = get_user_model().objects.create(email='test@gmail.com', username="fakeemail")
+        cls.neuro_profile = NeuroProfile.objects.create(user=cls.user)
+
+        cls.pr_dashboard = PinnedResourcesDashboard.objects.create(user=cls.neuro_profile)
+        cls.link = LinkUpload.objects.create(
+            pr_dashboard=cls.pr_dashboard,
+            link="https://docs.djangoproject.com/en/6.0/topics/db/examples/many_to_one/",
+            title="django docs"
+            )
     
     def setUp(self):
         self.client.force_authenticate(self.user)
 
-        # url = reverse('create-resource')
-        # link = "https://www.youtube.com/watch?v=-W89X9GsKyE"
-        # file = SimpleUploadedFile("ScienceExamProblems.pdf", b"How many inches are in a cm", content_type="application/pdf")
-        # data = {
-        #     'user': self.user.email,
-        #     'link_upload': link,
-        #     'resource_type': "Link",
-        #     'title': "Calc Lecture"
-        #     }
-        # response = self.client.post(url, data=data, format='json')
-        # self.assertEqual(
-        #     response.status_code, 
-        #     status.HTTP_201_CREATED,
-        #     msg=f'Post request status code error: {response.data}'
-        # )
-        # self.file = response.data
+    def link_resource_get(self):
+        # --- Perfect request ---
+        url = reverse("link-get", args=[self.link.id])
 
-    def test_resource_post(self):
-        print(f"User: {self.user.pk}")
-        url = reverse('create-resource')
-        file = SimpleUploadedFile("ScienceExamProblems.pdf", b"How many inches are in a cm", content_type="application/pdf")
-        link = "https://www.youtube.com/watch?v=-W89X9GsKyE"
-        data = {
-            'user': self.user.pk,
-            'file_upload': file,
-            "resource_type": "File",
-            "title": "Cultural Studies Lecture"
-            }
-        response = self.client.post(url, data=data, format='multipart')
-        self.assertEqual(
-            response.status_code, 
-            status.HTTP_201_CREATED,
-            msg=f'Status code error: {response.data}'
-        )
-        print(response.data)
-
-    def test_link_get(self):
-        url = reverse('get-link', args=[self.link['id']])
-        response = self.client.get(url)
+        response = self.client.get(url, format='json')
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
-            msg=f"Get request status code error: {response.data}"
+            msg=f"""========================== Link Resource Get (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
         )
-        print(response.data)
+        self.assertTrue(
+            all([ele in response.data for ele in ("id", "title", "link", "resource_type", "uploaded_at")]),
+            msg=f"""========================== Link Resource Get (TC: Perfect Request) ==========================\n
+            One of the keys are missing in response: {response.data}"""
+            )
+        
+        # --- Wrong ID ---
+        url2 = reverse("link-get", args=[100])
 
-    def test_resource_delete(self):
-        url = reverse('delete-resource', args=[self.file['id']])
-        params = {"resource_type": "Link"}
-        link_before = self.file
-        response = self.client.delete(url, data=params)
-
+        response2 = self.client.get(url2, format='json')
         self.assertEqual(
-            response.status_code,
-            status.HTTP_200_OK,
-            msg=f"Status code error: {response.data}"
+            response2.status_code,
+            status.HTTP_404_NOT_FOUND,
+            msg=f"""========================== Link Resource Get (TC: Wrong ID) ==========================\n
+            Error: {response2.data}"""
         )
-        self.assertNotIn(
-            link_before['id'],
-            LinkUpload.objects.filter(user=self.user),
-            msg=f"Link not deleted: {response.data}"
-        )
-        print(response.data)
-
-# @override_settings(MEDIA_URL='/test/')
-# class FileServingTestCase(TestCase):
-#     @classmethod
-#     def setUpClass(cls):
-#         from django.core.files.storage import FileSystemStorage
-#         super().setUpClass()
-#         cls.temp_media_root = tempfile.mkdtemp()
-#         settings.MEDIA_ROOT = cls.temp_media_root
-
-#         Resource._meta.get_field('file_upload').storage = FileSystemStorage(location=cls.temp_media_root)
-
-#         print(f"Test media root: {cls.temp_media_root}")
-#         print(f"Test media URL: {settings.MEDIA_URL}")
-#         print(f"Using custom file serving approach for tests")
-
-#     @classmethod
-#     def tearDownClass(cls):
-#         import shutil
-#         shutil.rmtree(cls.temp_media_root, ignore_errors=True)
-#         super().tearDownClass()
-
-#     def setUp(self):
-#         User = get_user_model()
-#         self.user = User.objects.create(email="test@gmail.com", password="Testpassword")
-
-#         url = reverse('create-resource')
-#         file = SimpleUploadedFile("ReligionNotes.pdf", b"Stock text", content_type="application/pdf")
-#         data = {
-#             'file_upload': file,
-#             'user': self.user.email
-#         }
-
-#         response = self.client.post(url, data=data)
-#         self.assertEqual(
-#             response.status_code,
-#             status.HTTP_200_OK,
-#             msg=f"Status code error: {response.data}"
-#         )
-
-#         self.resource = response.data
-
         
-#     def serve_test_file(self, file_path):
-#         """Custom method to serve files from the test media directory"""
-#         from django.http import HttpResponse
-        
-#         if file_path.startswith('/test/'):
-#             file_path = file_path[6:]
-        
-#         full_file_path = os.path.join(self.temp_media_root, file_path.lstrip('/'))
-        
-#         if not os.path.exists(full_file_path):
-#             return HttpResponse(status=404)
-        
-#         with open(full_file_path, 'rb') as f:
-#             content = f.read()
-        
-#         response = HttpResponse(content, content_type='application/pdf')
-#         return response
-
-#     def test_get_file(self):
-#         file_url = self.resource['file_upload']
-#         print(f"Original file_url: {file_url}")
-        
-#         parsed_url = urlparse(file_url)
-#         print(f"Parsed url components: {parsed_url}")
-        
-#         file_path = parsed_url.path
-#         print(f"File path: {file_path}")
-        
-#         response = self.serve_test_file(file_path)
-        
-#         print(f"Response status: {response.status_code}")
-#         print(f"Response headers: {dict(response.headers)}")
-#         print(f"Response Content: {response.content}")
-        
-#         if response.status_code != 200:
-#             print(f"Response content: {response.content}")
-        
-#         self.assertEqual(
-#             response.status_code, 
-#             200,
-#             msg=f"Status code error: {response.content}"
-#         )
-#         self.assertEqual(response['Content-Type'], 'application/pdf')
-#         self.assertTrue(len(response.content) > 0)
-
-class FileServeTest(APITestCase):
-    @classmethod
-    def setUpClass(cls):
-        super().setUpClass()
-        cls.user = get_user_model().objects.create(email="fakeemail@gmail.com", username="fakeemail")
-
-    def setUp(self):
-        self.client.force_authenticate(self.user)
-
-    def presigned_url_post(self):
-        url = reverse("presigned-urls")
+    def link_resource_post(self):
+        # --- Perfect Request ---
+        url = reverse("link-post")
         data = {
-            "bucket_name": "neuro-note-bucket-f-moj-r",
-            "object_name": "SWE Resume",
-            "region_name": "us-east-1"
+            "title": "a title to a link",
+            "link": "https://www.youtube.com/"
         }
 
         response = self.client.post(url, data=data, format="json")
         self.assertEqual(
             response.status_code,
-            status.HTTP_200_OK,
-            msg=f"Error: {response.data}"
+            status.HTTP_201_CREATED,
+            msg=f"""========================== Link Resource Post (TC: Perfect Request) ==========================\n
+            Error: {response.data}"""
         )
-        print(response.data)
+        self.assertTrue(
+            all([ele in response.data for ele in ("id", 'title', 'link', "resource_type", "uploaded_at")]),
+            msg=f"""========================== Link Resource Post (TC: Perfect Request) ==========================\n
+            Missing a key: {response.data}"""
+        )
+        self.assertTrue(
+            LinkUpload.objects.filter(pr_dashboard=self.pr_dashboard, title=data['title'], link=data['link']).exists(),
+            msg=f"""========================== Link Resource Post (TC: Perfect Request) ==========================\n
+            Object wasn't created: {response.data}"""
+        )
+
+        # --- Bad link ---
+        bl_data = {
+            "title": "a title to a link",
+            "link": "htp://youtube.com"
+        }
+        bl_response = self.client.post(url, data=bl_data, format="json")
+        self.assertFalse(
+            LinkUpload.objects.filter(pr_dashboard=self.pr_dashboard, title=bl_data['title'], link=bl_data['link']).exists(),
+            msg=f"""========================== Link Resource Post (TC: Bad Link) ==========================\n
+            Object was created: {bl_response.data}"""
+        )
+        self.assertEqual(
+            bl_response.status_code,
+            status.HTTP_400_BAD_REQUEST,
+            msg=f"""========================== Link Resource Post (TC: Bad Link) ==========================\n
+            Status Code Error: {bl_response.data}"""
+        )
+    
+    def link_resource_delete(self):
+        # --- Perfect Request ---
+        url = reverse("link-get", args=[self.link.id])
+
+        response = self.client.delete(url, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"""========================== Link Resource Delete (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+        )
+        self.assertFalse(
+            LinkUpload.objects.filter(pr_dashboard=self.pr_dashboard, title=self.link.title, link=self.link.link).exists(),
+            msg=f"""========================== Link Resource Delete (TC: Perfect Request) ==========================\n
+            Resource still exists: {response.data}"""
+        )
+
+class PDFTestCase(APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = get_user_model().objects.create(email='test@gmail.com', username="fakeemail")
+        cls.neuro_profile = NeuroProfile.objects.create(user=cls.user)
+
+        cls.pr_dashboard = PinnedResourcesDashboard.objects.create(user=cls.neuro_profile)
+        cls.pdf = PDFUpload.objects.create(
+            pr_dashboard=cls.pr_dashboard,
+            object_name="SWE Resume"
+            )
+    
+    def setUp(self):
+        self.client.force_authenticate(self.user)
+
+    def pdf_resource_get(self):
+        # --- Perfect Request ---
+        url = reverse("pdf-get-delete", args=[self.pdf.id])
+
+        response = self.client.get(url, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"""========================== PDF Resource Get (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+        )
+        self.assertTrue(
+            all([ele in response.data for ele in ("id", "uploaded_at", "resource_type", "object_name")]),
+            msg=f"""========================== PDF Resource Get (TC: Perfect Request) ==========================\n
+            Missing a key value: {response.data}"""
+        )
+
+        # --- Wrong ID ---
+        wid_url = reverse("pdf-get-delete", args=[100])
+
+        wid_response = self.client.get(wid_url, format='json')
+        self.assertEqual(
+            wid_response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            msg=f"""========================== PDF Resource Get (TC: Wrong ID) ==========================\n
+            Status Code Error: {wid_response.data}"""
+        )
+
+   
+        # --- Perfect Request ---
+        url = reverse("pdf-post")
+        data = {
+            "object_name": "Random Homework Assignment"
+        }
+
+        response = self.client.post(url, data=data, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            msg=f"""========================== PDF Resource Post (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+        )
+        self.assertTrue(
+            all([ele in response.data for ele in ("id", "uploaded_at", "resource_type", "object_name")]),
+            msg=f"""========================== PDf Resource Post (TC: Perfect Request) ==========================\n
+            Missing a key value: {response.data}"""
+        )
+        self.assertTrue(
+            PDFUpload.objects.filter(pr_dashboard=self.pr_dashboard, object_name=data["object_name"]).exists(),
+            msg=f"""========================== PDF Resource Post (TC: Perfect Request) ==========================\n
+            Object wasn't created: {response.data}"""
+        )
+    
+    def pdf_resource_delete(self):
+        # --- Perfect Request ---
+        url = reverse("pdf-get-delete", args=[self.pdf.id])
+
+        response = self.client.delete(url, format='json')
+        self.assertFalse(
+            PDFUpload.objects.filter(pr_dashboard=self.pr_dashboard, id=self.pdf.id).exists(),
+            msg=f"""========================== PDF Resource Delete (TC: Perfect Request) ==========================\n
+            PDF resource didn't delete: {response.data}"""
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"""========================== PDF Resource Delete (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+        )
+
+        # --- Wrong ID ---
+        wid_url = reverse("pdf-get-delete", args=[100])
+
+        wid_response = self.client.delete(wid_url, format='json')
+        self.assertEqual(
+            wid_response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            msg=f"""========================== PDF Resource Delete (TC: Wrong ID) ==========================\n
+            Status Code Error: {wid_response.data}"""
+        )
+
+class FileServeTestCase(APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = get_user_model().objects.create(email="fakeemail@gmail.com", username="fakeemail")
+        cls.neuro_profile = NeuroProfile.objects.create(user=cls.user)
+        cls.pr_dashboard = PinnedResourcesDashboard.objects.create(user=cls.neuro_profile)
+
+    def setUp(self):
+        self.client.force_authenticate(self.user)
+
+    def presigned_url_post(self):
+        # --- Perfect Request ---
+        url = reverse("presigned-urls-post")
+        data = {
+            "object_name": "SWE Resume"
+        }
+
+        response = self.client.post(url, data=data, format="json")
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            msg=f"""========================== Presigned Url Post (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+        )
+        self.assertTrue(
+            all([ele in response.data for ele in ("id", "uploaded_at", "resource_type", "object_name", "url")]),
+            msg=f"""========================== Presigned Url Post (TC: Perfect Request) ==========================\n
+            Missing a key value: {response.data}"""
+        )
+        self.assertTrue(
+            PDFUpload.objects.filter(pr_dashboard=self.pr_dashboard, object_name=data["object_name"]).exists(),
+            msg=f"""========================== Presigned Url Post (TC: Perfect Request) ==========================\n
+            Object wasn't created: {response.data}"""
+        )
 
     def presigned_url_get(self):
-        url = reverse("presigned-urls", args=["neuro-note-bucket-f-moj-r", "SWE Resume", "us-east-1"])
+        # --- Perfect Request ---
+        url = reverse("presigned-urls-get", args=["SWE Resume"])
 
         response = self.client.get(url, format="json")
         self.assertEqual(
             response.status_code,
             status.HTTP_200_OK,
-            msg=f"Error: {response.data}"
+            msg=f"""========================== Presigned Url Get (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+        )
+
+class AllResourcesTestCase(APITestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = get_user_model().objects.create(email="fakeemail@gmail.com", username="fakeemail")
+        cls.neuro_profile = NeuroProfile.objects.create(user=cls.user)
+        cls.pr_dashboard = PinnedResourcesDashboard.objects.create(user=cls.neuro_profile)
+        cls.pdf = PDFUpload.objects.create(
+            pr_dashboard=cls.pr_dashboard,
+            object_name="SWE Resume"
+            )
+        cls.link = LinkUpload.objects.create(
+            pr_dashboard=cls.pr_dashboard,
+            link="https://docs.djangoproject.com/en/6.0/topics/db/examples/many_to_one/",
+            title="django docs"
+            )
+
+
+    def setUp(self):
+        self.client.force_authenticate(self.user)
+
+    def all_resources_get(self):
+        # --- Perfect Request ---
+        url = reverse("all-resources")
+
+        response = self.client.get(url, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"""========================== All Resources Get (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
         )
         print(response.data)
