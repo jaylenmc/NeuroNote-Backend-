@@ -10,7 +10,7 @@ urlpatterns = [
     path('link/delete/<int:id>/', views.LinkResource.as_view(), name='link-delete'),
     # Presigned URLs for S3
     path("files/", views.PresignedUrls.as_view(), name="presigned-urls-post"),
-    path("files/<int:id>/", views.PresignedUrls.as_view(), name="presigned-urls-get"),
+    path("files/<str:object_name>/", views.PresignedUrls.as_view(), name="presigned-urls-get"),
     # All Resources
     path('all/', views.all_resources, name="all-resources")
 ]

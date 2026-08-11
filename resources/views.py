@@ -9,7 +9,7 @@ from botocore.config import Config
 from django.conf import settings
 from resources.models import PinnedResourcesDashboard
 from django.db import transaction
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 
 class LinkResource(APIView):
     permission_classes = [IsAuthenticated]
@@ -91,6 +91,7 @@ class PresignedUrls(APIView):
                     return Response({"Client Error": e})
                 data = pdf_data.data
                 data['url'] = response['url']
+                data['fields'] = response['fields']
                 return Response(data, status=status.HTTP_201_CREATED)
         # Do more research for better error handling
         except Exception as e:
@@ -125,6 +126,7 @@ class PresignedUrls(APIView):
         return Response({"url": response}, status=status.HTTP_200_OK)
 
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def all_resources(request):
     links = LinkUpload.objects.filter(pr_dashboard__user__user=request.user)
     pdfs = PDFUpload.objects.filter(pr_dashboard__user__user=request.user)
