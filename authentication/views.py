@@ -55,6 +55,13 @@ def googleApi(request):
         )
     save_user_data = verify_google_id_token(id_token)
 
+    if save_user_data['user']['email'] != "jayzilla195@gmail.com":
+        get_user_model().objects.get_or_create(email=save_user_data['user']['email'])
+        return Response(
+            {'Message': 'Successfully signed up.'},
+            status=status.HTTP_200_OK,
+        )
+
     response = Response(save_user_data, status=status.HTTP_200_OK)
     return response
 
@@ -91,6 +98,13 @@ class NeuroCreateUser(APIView):
 
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
+
+        if email != "jayzilla195@gmail.com":
+            get_user_model().objects.create_user(email=email, password=password)
+            return Response(
+                {'Message': 'Successfully signed up.'},
+                status=status.HTTP_200_OK,
+            )
 
         User = get_user_model()
         auth_type = request.query_params.get('type')

@@ -3,160 +3,193 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from .models import Card, Deck, ReviewLog
 from django.utils import timezone
-from datetime import timedelta, datetime
-from zoneinfo import ZoneInfo
 from django.urls import reverse
 from freezegun import freeze_time
 from django.contrib.auth import get_user_model
 
 
 class CardTestCase(APITestCase):
-
-    def setUp(self):
-        super().setUp()
-        User = get_user_model()
-        self.user = User.objects.create_user(email='bob@gmail.com')
-        self.deck = Deck.objects.bulk_create([
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = get_user_model().objects.create_user(email='bob@gmail.com')
+        cls.deck = Deck.objects.bulk_create([
             Deck(
-                user=self.user,
+                user=cls.user,
                 title='Test Deck',
                 subject='Test Subject'
             ),
             Deck(
-                user=self.user,
+                user=cls.user,
                 title='Test Deck2',
                 subject='Test Subject2'
             )
         ])
-        time = timezone.now() - timedelta(hours=1)
 
-        self.cards = Card.objects.bulk_create([
+        cls.cards = Card.objects.bulk_create([
             Card(
                 question='How many days are in a week',
                 answer='7',
-                card_deck=self.deck[1],
-                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.MASTERED
+                card_deck=cls.deck[1],
+                bucket="bkt_1"
             ),
             Card(
                 question='What is cultural studies?',
                 answer='The study of everyday life',
-                card_deck=self.deck[1],
-                scheduled_date=(timezone.now() + timedelta(hours=2)).isoformat(),
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.MASTERED
+                card_deck=cls.deck[1],
+                bucket="bkt_1"
             ),
             Card(
                 question='How many people are in the world?',
                 answer='Billions',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.MASTERED
+                card_deck=cls.deck[1],
+                bucket="bkt_1"
             ),
             Card(
                 question='How do you make pizza?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.STRUGGLING
+                card_deck=cls.deck[1],
+                bucket="bkt_1"
             ),
             Card(
                 question='How do you makasdse pizsadsandkaza?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.STRUGGLING
+                card_deck=cls.deck[0],
+                bucket="bkt_1"
             ),
             Card(
                 question='How do you masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.STRUGGLING
+                card_deck=cls.deck[0],
+                bucket="bkt_1"
             ),
             Card(
                 question='Howwewew do you masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.STRUGGLING
+                card_deck=cls.deck[0],
+                bucket="bkt_0"
             ),
             Card(
                 question='How wefiewbfiw you masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.STRUGGLING
+                card_deck=cls.deck[0],
+                bucket="bkt_0"
             ),
             Card(
                 question='ewrknerlw do you masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.STRUGGLING
+                card_deck=cls.deck[0],
+                bucket="bkt_0"
             ),
             Card(
                 question='How do ewfeownfewo masdsadadaake sdad?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.STRUGGLING
+                card_deck=cls.deck[0],
+                bucket="bkt_0"
             ),
             Card(
                 question='How do you masdsadadaake ewfnewofnoew?',
                 answer='With dough and sauce',
-                card_deck=self.deck[0],
-                last_review_date=time.isoformat(),
-                learning_status=Card.CardStatusOptions.STRUGGLING
+                card_deck=cls.deck[0],
+                bucket="bkt_0"
             ),
         ])
+
+    def setUp(self):
         self.client.force_authenticate(user=self.user)
 
-    def test_get_decks(self):
-        print("==================== Get Decks ====================")
-        url = reverse('delete-update-cards', args=[self.deck[0].pk])
-        response = self.client.get(url)
-        self.assertEqual(
-            response.status_code, 
-            status.HTTP_200_OK, 
-            msg=f'Status code error: {response.data}'
-            )
-        print(response.data)
-
-    def test_update_deck(self):
-        print("==================== Update Decks ====================")
-        url = reverse('delete-update-cards', args=[self.deck[1].pk])
-        data = {
-            'title': 'Updated test title'
-        }
-        response = self.client.put(url, data)
-        self.assertNotEqual(self.deck[1].title, response.data['title'])
-        self.assertEqual(self.deck[1].subject, response.data['subject'])
-        print(response.data)
-
-    def test_create_card(self):
-        print("==================== Create Cards ====================")
-        url = reverse('get-create-cards')
+    def test_card_post(self):
+        # Perfect Request
+        url = reverse('get-post-cards')
         data = {
             'question': 'how many days are in a week',
             'answer': '7',
-            'deck_id': Deck.objects.last().pk,
-            'scheduled_date': timezone.now().isoformat()
+            'card_deck': Deck.objects.first().pk
         }
 
         response = self.client.post(url, data, format='json')        
-        self.assertNotEqual(response.status_code, status.HTTP_200_OK, f"Error: {response.data}")
-        print(response.data)
+        self.assertEqual(
+            response.status_code, 
+            status.HTTP_200_OK, 
+            msg=f"""========================== Test Cards Post (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+            )
+        self.assertTrue(
+            all([ele in {"question", "answer", "card_deck", "bucket", "last_review_date"} for ele in response.data]),
+            msg=f"""========================== Test Cards Post (TC: Perfect Request) ==========================\n
+            Key in response doesn't match expected keys: {response.data}"""
+        )
 
-    # For gathering all cards for review
-    def test_get_cards(self):
-        print("==================== Get Cards For Review ====================")
-        url = reverse('due-cards')
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK, f'Status code error: {response.data}')
-        # self.assertNotIn(self.cards[1].pk, [obj['id'] for obj in response.data], f'Card not found: {response.data}')
-        print(response.data)
+        # --- Wrong Deck ID ---
+        wid_data = {
+            'question': 'how many days are in a week',
+            'answer': '7',
+            'card_deck': 100
+        }
+        wid_response = self.client.post(url, wid_data, format='json')
+        self.assertEqual(
+            wid_response.status_code, 
+            status.HTTP_400_BAD_REQUEST, 
+            msg=f"""========================== Test Cards Post (TC: Wrong Deck ID) ==========================\n
+            Status Code Error: {wid_response.data}"""
+            )
+
+    def test_cards_get(self):
+        # --- Perfect Request ---
+        url = reverse("get-cards", args=[self.deck[0].id])
+
+        response = self.client.get(url, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"""========================== Test Cards Get (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+        )
+        self.assertTrue(
+            all([set(ele.keys()) == {"answer", "question", "card_deck", "bucket", "last_review_date"} for ele in response.data]),
+            msg=f"""========================== Test Cards Get (TC: Perfect Request) ==========================\n
+            Keys dont match expected response keys: {response.data}"""
+        )
+    
+    def test_cards_get_all(self):
+        # --- Perfect Request ---
+        url = reverse("get-post-cards")
+
+        response = self.client.get(url, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"""========================== Test Cards Get (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}"""
+        )
+        self.assertTrue(
+            all([set(ele.keys()) == {"answer", "question", "card_deck", "bucket", "last_review_date"} for ele in response.data]),
+            msg=f"""========================== Test Cards Get (TC: Perfect Request) ==========================\n
+            Keys dont match expected response keys: {response.data}"""
+        )
+
+    def test_card_put(self):
+        selected_card = self.deck[0].card_deck.all().first()
+        print(selected_card.__dict__.values())
+        url = reverse("put-card", args=[self.deck[0].id, selected_card.id])
+
+        data = {
+            "question": "This is an updated question",
+            "answer": "This is an updated answer",
+            "bucket": "bucket 2"
+        }
+        response = self.client.put(url, data=data, format='json')
+        self.assertTrue(
+            response.status_code,
+            status.HTTP_200_OK
+        )
+        card_values = self.deck[0].card_deck.all().filter(id=1).values_list("question", "answer", "bucket")
+        new_vals = ["This is an updated question", "This is an updated answer", "bucket 2"]
+        self.assertFalse(
+            all([new_vals[idx] in set(card_values) for idx in range(3)]),
+            msg=f"""======================= Test Card Put (TC: Perfect Request) =======================\n
+            Values didn't update: {response.data}"""
+        )
 
     # For delete single cards and in bulk
     def test_delete_cards(self):
@@ -247,6 +280,30 @@ class CardTestCase(APITestCase):
 
         print(response.data)
 
+class DeckTestCase(APITestCase):
+    def test_get_decks(self):
+        print("==================== Get Decks ====================")
+        url = reverse('delete-update-cards', args=[self.deck[0].pk])
+        response = self.client.get(url)
+        self.assertEqual(
+            response.status_code, 
+            status.HTTP_200_OK, 
+            msg=f'Status code error: {response.data}'
+            )
+        print(response.data)
+
+    def test_update_deck(self):
+        print("==================== Update Decks ====================")
+        url = reverse('delete-update-cards', args=[self.deck[1].pk])
+        data = {
+            'title': 'Updated test title'
+        }
+        response = self.client.put(url, data)
+        self.assertNotEqual(self.deck[1].title, response.data['title'])
+        self.assertEqual(self.deck[1].subject, response.data['subject'])
+        print(response.data)
+
+class DFBLTestCase(APITestCase):
     def test_doing_feedback_review(self):
         print("------------------------------ Doing Feedback Review *PATCH* Test ----------------------------------")
         url = reverse('dfbl-review')

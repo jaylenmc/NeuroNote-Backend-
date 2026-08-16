@@ -27,7 +27,7 @@ class DeckSerializer(serializers.ModelSerializer):
 class CardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Card
-        fields = '__all__'
+        fields = ["question", "answer", "card_deck", "bucket", "last_review_date"] 
 
 class DoingFeedbackReviewSerializer(serializers.Serializer):
     card=serializers.PrimaryKeyRelatedField(queryset=Card.objects.all())

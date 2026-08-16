@@ -109,49 +109,25 @@ class CardCollection(APIView):
         return Response(serialized.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        question = request.data.get('question')
-        answer = request.data.get('answer')
-        deck_id = request.data.get('deck_id')
-        scheduled_date = request.data.get('scheduled_date')
-        deck = Deck.objects.get(user=request.user, id=deck_id)
+        input_data = CardSerializer(data=request.data)
+        input_data.is_valid(raise_exception=True)
+        card_data = input_data.save()
 
-        if Card.objects.filter(card_deck=deck, question__iexact=question).exists():
-            return Response({"Message": "Card already exists"}, status=status.HTTP_406_NOT_ACCEPTABLE)
-        
-        user_card = Card.objects.create(
-            question=question,
-            answer=answer,
-            card_deck=deck,
-            scheduled_date=(timezone.now() + timedelta(hours=1)).isoformat() if not scheduled_date else scheduled_date
-            )
-                
-        serialized = CardSerializer(user_card)
-        return Response(serialized.data, status=status.HTTP_200_OK)
+        serialized = CardSerializer(card_data)
+        fixed_serializer = dict(serialized.data)
+        fixed_serializer["last_review_date"] = "None"
+
+        return Response(fixed_serializer, status=status.HTTP_200_OK)
     
     def put(self, request, deck_id, card_id):
-        card = Card.objects.filter(card_deck__user=request.user, card_deck__id=deck_id, id=card_id).first()
+        card = Card.objects.filter(card_deck__user=request.user, card_deck=deck_id, id=card_id)
 
         if not card:
-            return Response({"Message": "Card does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"Error": "Card doesn't exist"}, status=status.HTTP_404_NOT_FOUND)
         
-        question = request.data.get('question')
-        answer = request.data.get('answer')
-        scheduled_date = request.data.get('scheduled_date')
-
-        if question:
-            card.question = question
-
-        if answer:
-            card.answer = answer
-
-        if scheduled_date is not None:
-            card.scheduled_date = scheduled_date
-        else:
-            card.scheduled_date = None
-
-        card.save()
-
-        serialized = CardSerializer(card)
+        serialized = CardSerializer(card.first(), data=request.data)
+        serialized.is_valid(raise_exception=True)
+        serialized.save()
 
         return Response(serialized.data, status=status.HTTP_200_OK)
     

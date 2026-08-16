@@ -14,6 +14,7 @@ from rest_framework.decorators import api_view, permission_classes
 class LinkResource(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request, id):
+        # Add error if id isn't included
         if id:
             link = LinkUpload.objects.filter(pr_dashboard__user__user=request.user, id=id)
             if link.exists():
