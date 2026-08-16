@@ -1,13 +1,6 @@
 from django.db import models
-from authentication.models import AuthUser
-from django.utils import timezone 
-from datetime import timedelta
-import math
 from .utils import reward_xp
-
-MINUTE   = 60                     
-HOUR     = 60 * MINUTE
-DAY      = 24 * HOUR
+from django.conf import settings
 
 class Deck(models.Model):
     title = models.TextField()
@@ -15,93 +8,33 @@ class Deck(models.Model):
     num_of_cards = models.IntegerField(default=0)
     mastery_progress = models.FloatField(default=0)
     is_mastered = models.BooleanField(default=False)
-
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
 
 class Card(models.Model):
     class CardStatusOptions(models.TextChoices):
-        UNSEEN = "unseen", "Unseen"
-        STRUGGLING = "strgl", "struggling"
-        IMPROVING = "imprv", "Improving"
-        MASTERED = "mstrd", "Mastered"
+        BUCKET_0 = "bkt_0", "New Card"
+        BUCKET_1 = "bkt_1", "Bucket 1"
+        BUCKET_2 = "bkt_2", "Bucket 2"
+        BUCKET_3 = "bkt_3", "Bucket 3"
+        BUCKET_4 = "bkt_4", "Bucket 4"
 
     question = models.TextField()
     answer = models.TextField()
     card_deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name="card_deck")
-    learning_status = models.CharField(max_length=10, default=CardStatusOptions.UNSEEN, choices=CardStatusOptions.choices)
-
+    bucket = models.CharField(choices=CardStatusOptions.choices, default=CardStatusOptions.BUCKET_0)
     repetitions = models.IntegerField(default=0)
-    difficulty = models.FloatField(default=5.0)
-    stability = models.FloatField(default=1440.0)
-
-    last_review_date = models.DateTimeField(null=True, blank=True)
-    scheduled_date = models.DateTimeField(null=True, blank=True)
-
-    def update_sm21(self, rating):
-        now_utc = timezone.now()
-
-        # 1. Elapsed time
-        elapsed_minutes = 0
-        if self.last_review_date:
-            elapsed_minutes = (now_utc - self.last_review_date).total_seconds() / 60.0
-
-        # 2. Difficulty adjustment
-        diff_change = 0.1 * (2 - rating)
-        self.difficulty = max(1.0, min(10.0, self.difficulty + diff_change))
-
-        # 3. Stability and interval
-        if rating == 0:
-            self.stability *= 0.85
-            interval_min = 5 
-
-        elif rating == 1:
-            retrievability = max(math.exp(-elapsed_minutes / self.stability), 0.1)
-            self.stability *= 0.8 * retrievability
-            self.stability = max(self.stability, 10.0)  # Minimum floor
-            interval_min = max(
-                5,
-                min(int(self.stability * (retrievability + 0.1) * 1.2), 480)  # cap at 8h
-            )
-
-        elif rating == 2:
-            retrievability = max(math.exp(-elapsed_minutes / self.stability), 0.1)
-            self.stability *= 0.9 * retrievability
-            self.stability = max(self.stability, 10.0)
-            interval_min = max(
-                10,
-                min(int(self.stability * (retrievability + 0.2) * 1.3), 1440)  # cap at 24h
-            )
-
-        else:
-            retrievability = max(math.exp(-elapsed_minutes / self.stability), 0.1)
-            gain = (0.1 + 0.1 * rating) * math.exp(1 - retrievability)
-            self.stability *= (1 + gain)
-            interval_min = int(max(
-                10,
-                min(self.stability * 1.3, 365 * DAY // MINUTE)  # cap at 1 year
-            ))
-
-        # 4. Schedule next review
-        self.scheduled_date = now_utc + timedelta(minutes=interval_min)
-
-        # 5. Bookkeeping
-        self.last_review_date = now_utc
-        self.repetitions += 1
-
-        # 6. Learning status
-        if interval_min < 10 * MINUTE and self.difficulty > 5.5:
-            self.learning_status = Card.CardStatusOptions.STRUGGLING
-        elif interval_min > 45 * DAY // MINUTE and self.difficulty <= 4.0:
-            self.learning_status = Card.CardStatusOptions.MASTERED
-        else:
-            self.learning_status = Card.CardStatusOptions.IMPROVING
-
-        # 7. Save + log
-        reward_xp(self.card_deck.user, rating)
-        self.save()
+    last_review_date = models.DateField(auto_now=True, null=True, blank=True)
 
 class ReviewLog(models.Model):
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, related_name="user_review_log")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_review_log")
     cards = models.ManyToManyField(Card, related_name="reviewed_cards")
     session_time = models.DurationField()
     reviewed_at = models.DateTimeField(auto_now_add=True)
+
+class DoingFeedbackReview(models.Model):
+    user=models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    card=models.ForeignKey(Card, on_delete=models.CASCADE)
+    layer_one_attempts=models.IntegerField(default=0)
+    layer_two_attempts=models.IntegerField(default=0)
+    layer_three_attempts=models.IntegerField(default=0)
+    dfbl_attempt_date=models.DateTimeField(auto_now_add=True, null=True, blank=True)

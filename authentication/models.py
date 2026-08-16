@@ -1,52 +1,31 @@
-from django.db import models
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
-from django.utils import timezone
+from django.contrib.auth.models import AbstractUser, UserManager
+from django.db import models 
+from django.contrib.auth import get_user_model
+from rest_framework import exceptions
 
-class UserManager(BaseUserManager):
+class CustomManager(UserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
-            raise ValueError("Must include email")
-        
+            raise ValueError("Email is required")
         email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-
-        if password:
-            user.set_password(password)
-
-        user.save(using=self._db)
+        extra_fields.setdefault('username', email.split('@')[0])
+        user = super().create_user(email=email,
+                                   password=password,
+                                   **extra_fields
+                                   )
         return user
+
+    def get_or_create(self, email, password=None):
+        try:
+            user = self.get(email=email)
+            return user, False
+        except self.model.DoesNotExist:
+            return self.create_user(email=email, password=password), True
     
-    def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('is_active', True)
-
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError('Super user must have is_staff=True')
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Superuser must have is_superuser=True')
-        
-        return self.create_user(email, password, **extra_fields)
-    
-class AuthUser(AbstractBaseUser, PermissionsMixin):
-    email = models.CharField(unique=True, max_length=255)
-    is_active = models.BooleanField(default=True)
-    is_staff = models.BooleanField(default=False)
-    access_token_expires_at = models.DateTimeField(blank=True, null=True)
-    google_access_token = models.CharField(null=True)
-    google_refresh_token = models.CharField(null=True)
-    jwt_token = models.CharField(null=True)
-    plan = models.CharField(max_length=255, default='Note Taker')
-    token_amount = models.IntegerField(default=1000)
-
-    xp = models.IntegerField(default=0)
-    level = models.IntegerField(default=1)
-
-    current_streak = models.IntegerField(default=0)
-    longest_streak = models.IntegerField(default=0)
-    last_login_date = models.DateField(default=timezone.now)
-
-    objects = UserManager()
-
-    USERNAME_FIELD = 'email'
+class User(AbstractUser):
+    email = models.EmailField(unique=True)
+    username = models.CharField(max_length=255)
     REQUIRED_FIELDS = []
+    USERNAME_FIELD = 'email'
+
+    objects = CustomManager()

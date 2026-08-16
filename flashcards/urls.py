@@ -2,15 +2,18 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    # Deck endpoints
     path('deck/', views.DeckCollection.as_view(), name='get-decks'),
     path('deck/<int:deck_id>/', views.DeckCollection.as_view(), name='delete-update-cards'),
-
-    path('cards/', views.CardCollection.as_view(), name='get-create-cards'),
+    # Card endpoints
+    path('cards/', views.CardCollection.as_view(), name='get-post-cards'),
     path('cards/<int:deck_id>/', views.CardCollection.as_view(), name='get-cards'),
     path('cards/delete/<int:deck_id>/<int:card_id>/', views.CardCollection.as_view(), name='delete-cards'),
-    path('cards/update/<int:deck_id>/<int:card_id>/', views.CardCollection.as_view()),
-
+    path('cards/update/<int:deck_id>/<int:card_id>/', views.CardCollection.as_view(), name="put-card"),
     path('cards/due/', views.DueCardsView.as_view(), name='due-cards'),
-
-    path('review/', views.review_card, name='review-card')
+    # Review endpoints
+    path('review/', views.review_card, name='review-card'),
+    # Doing + Feedback Loop endpoints
+    path('doing-feedback-review/', views.DoingFeedbackLoopReview.as_view(), name='dfbl-review'),
+    path('doing-feedback-review/<int:card_id>/', views.DoingFeedbackLoopReview.as_view(), name='dfbl-review-get'),
 ]

@@ -26,9 +26,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 import os
 import environ
 
-env = environ.Env(
-    DEBUG=(bool, False)
-)
+env = environ.Env()
 
 environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
@@ -40,12 +38,14 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG')
+
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
 
 ALLOWED_HOSTS = ['127.0.0.1', 'localhost', "neuronote-backend-production.up.railway.app"]
 
 # Application definition
 INSTALLED_APPS = [
+    'django_extensions',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -65,7 +65,7 @@ INSTALLED_APPS = [
     'chat',
     'studyroom',
     'resources',
-    'solostudyroom'
+    'neuro_profile'
 ]
 
 REST_FRAMEWORK = {
@@ -78,7 +78,7 @@ from datetime import timedelta
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 
     'USER_ID_FIELD': 'id',
 }
@@ -153,10 +153,11 @@ if DEBUG == False:
     DATABASES = {
         "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)
     }
+    REDIRECT_URI = env('PROD_REDIRECT_URI')
 else:
     DATABASES = {
         'default': {
-            'ENGINE': 'django.db.backends.postgresql',
+            'ENGINE': 'django.db.backends.postgresql', 
             'NAME': env('DB_NAME'),
             'USER': env('DB_USER'),
             'PASSWORD': env('DB_PASSWORD'),
@@ -164,6 +165,7 @@ else:
             'PORT': env('DB_PORT'),
         }
     }
+    REDIRECT_URI = env('DEV_CLIENT_REDIRECT_URI')
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -214,16 +216,19 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-AUTH_USER_MODEL = 'authentication.AuthUser'
-
-REDIRECT_URI = env('REDIRECT_URI')
-
 LOGIN_URL = '/'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT =  BASE_DIR / 'media'
 
-# Try to read from .env file, but don't fail if it doesn't exist
+# Google Auth Credentials
 SECRET_KEY = env('SECRET_KEY')
 GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
+
+# Railway Bucket Credentials
+AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
+AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
+AWS_ENDPOINT_URL= env("AWS_ENDPOINT_URL")
+
+AUTH_USER_MODEL = 'authentication.User'

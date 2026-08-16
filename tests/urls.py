@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('quiz/', views.QuizView.as_view()),
     path('quiz/<int:quiz_id>/', views.QuizView.as_view()),
+    path('quiz/edit/<int:quiz_id>/', views.QuizView.as_view(), name='edit-quiz'),
 
     path('quiz/question/', views.QuizQuestions.as_view()),
     path('quiz/question/<int:quiz_id>/', views.QuizQuestions.as_view()),

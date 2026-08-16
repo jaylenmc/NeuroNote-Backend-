@@ -1,9 +1,9 @@
 from django.db import models
-from authentication.models import AuthUser
+from django.conf import settings
 
 class Folder(models.Model):
     name = models.CharField(max_length=255, default='Untitled')
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE, null=True)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, null=True)
     content_num = models.IntegerField(default=0)
     parent_folder = models.ForeignKey(
         'self',

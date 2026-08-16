@@ -1,5 +1,5 @@
 from django.db import models
-from authentication.models import AuthUser
+from django.conf import settings
 from flashcards.models import Card
 
 class DFBLUserInteraction(models.Model):
@@ -10,7 +10,7 @@ class DFBLUserInteraction(models.Model):
         SPEED_RUN = "speed_run", "Speed run"
         SOCRATIC = "socratic", "Socratic"
         SUPPORTIVE = "supportive", "Supportive"
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     card = models.ForeignKey(Card, on_delete=models.CASCADE, null=True, blank=True)
     neuro_response = models.TextField(null=True, blank=True)
     user_answer = models.TextField(null=True, blank=True)
@@ -49,7 +49,7 @@ class DFBLUserInteraction(models.Model):
         return self.tutor_style_descriptions()[self.tutor_style]
 
 class UPSUserInteraction(models.Model):
-    user = models.ForeignKey(AuthUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     question = models.TextField()
     neuro_response = models.TextField()
 

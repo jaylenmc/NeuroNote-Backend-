@@ -1,5 +1,5 @@
 from django.db import models
-from authentication.models import AuthUser
+from django.conf import settings
 
 class Achievements(models.Model):
     name = models.CharField(unique=True, max_length=255, null=True)
@@ -18,7 +18,7 @@ class Badge(models.Model):
         return self.name
 
 class UserAchievements(models.Model):
-    user = models.OneToOneField(AuthUser, on_delete=models.CASCADE)
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     achievements = models.ManyToManyField(Achievements)
     badges = models.ManyToManyField(Badge)
 

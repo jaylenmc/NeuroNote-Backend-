@@ -1,18 +1,19 @@
+from neuro_profile.models import NeuroProfile
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
-from .models import Deck, Card, ReviewLog
+from .models import Deck, Card, ReviewLog, DoingFeedbackReview
 from rest_framework.response import Response
 from rest_framework.exceptions import status
-from .serializers import DeckSerializer, CardSerializer
+from .serializers import DeckSerializer, CardSerializer, DoingFeedbackReviewSerializer
 from rest_framework.permissions import IsAuthenticated
-from authentication.models import AuthUser
+from django.contrib.auth import get_user_model
 from achievements.models import UserAchievements
 from achievements.services import knowledge_engineer, memory_architect, deck_destroyer
 from django.utils import timezone
-from .services import check_past_week_cards, num_of_cards, deck_mastery_progress
+from .services import num_of_cards, deck_mastery_progress
 from django.db.models import Q
 from datetime import timedelta
-from .serializers import ReviewSessionInput, ReviewItemSerializer
+from .serializers import ReviewSessionInput, ReviewItemSerializer, DoingFeedbackReviewModelSerializer
 from datetime import timedelta
 from django.shortcuts import get_object_or_404
 
@@ -36,13 +37,13 @@ class DeckCollection(APIView):
                 new_deck = deck_mastery_progress(request.user, deck.id)
                 updated_decks.append(new_deck)
 
-            user = AuthUser.objects.filter(email=request.user.email).first()
+            user = get_user_model().objects.filter(email=request.user.email).first()
+            neuro_profile = NeuroProfile.objects.get(user=user)
             serialized = DeckSerializer(updated_decks, many=True)
 
             data = {
                 'decks': serialized.data,
-                'xp': user.xp,
-                'level': user.level
+                'xp': neuro_profile.xp
             }
 
             return Response(data, status=status.HTTP_200_OK)
@@ -50,7 +51,7 @@ class DeckCollection(APIView):
     
     def post(self, request):
         title = request.data.get('title')
-        user = AuthUser.objects.filter(email=request.user.email).first()
+        user = get_user_model().objects.filter(email=request.user.email).first()
         subject = request.data.get('subject')
 
         if Deck.objects.filter(title__iexact=title).exists():
@@ -108,49 +109,25 @@ class CardCollection(APIView):
         return Response(serialized.data, status=status.HTTP_200_OK)
 
     def post(self, request):
-        question = request.data.get('question')
-        answer = request.data.get('answer')
-        deck_id = request.data.get('deck_id')
-        scheduled_date = request.data.get('scheduled_date')
-        deck = Deck.objects.get(user=request.user, id=deck_id)
+        input_data = CardSerializer(data=request.data)
+        input_data.is_valid(raise_exception=True)
+        card_data = input_data.save()
 
-        if Card.objects.filter(card_deck=deck, question__iexact=question).exists():
-            return Response({"Message": "Card already exists"}, status=status.HTTP_406_NOT_ACCEPTABLE)
-        
-        user_card = Card.objects.create(
-            question=question,
-            answer=answer,
-            card_deck=deck,
-            scheduled_date=(timezone.now() + timedelta(hours=1)).isoformat() if not scheduled_date else scheduled_date
-            )
-                
-        serialized = CardSerializer(user_card)
-        return Response(serialized.data, status=status.HTTP_200_OK)
+        serialized = CardSerializer(card_data)
+        fixed_serializer = dict(serialized.data)
+        fixed_serializer["last_review_date"] = "None"
+
+        return Response(fixed_serializer, status=status.HTTP_200_OK)
     
     def put(self, request, deck_id, card_id):
-        card = Card.objects.filter(card_deck__user=request.user, card_deck__id=deck_id, id=card_id).first()
+        card = Card.objects.filter(card_deck__user=request.user, card_deck=deck_id, id=card_id)
 
         if not card:
-            return Response({"Message": "Card does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"Error": "Card doesn't exist"}, status=status.HTTP_404_NOT_FOUND)
         
-        question = request.data.get('question')
-        answer = request.data.get('answer')
-        scheduled_date = request.data.get('scheduled_date')
-
-        if question:
-            card.question = question
-
-        if answer:
-            card.answer = answer
-
-        if scheduled_date is not None:
-            card.scheduled_date = scheduled_date
-        else:
-            card.scheduled_date = None
-
-        card.save()
-
-        serialized = CardSerializer(card)
+        serialized = CardSerializer(card.first(), data=request.data)
+        serialized.is_valid(raise_exception=True)
+        serialized.save()
 
         return Response(serialized.data, status=status.HTTP_200_OK)
     
@@ -219,3 +196,24 @@ class DueCardsView(APIView):
         
         serialized = CardSerializer(due_cards, many=True)
         return Response(serialized.data, status=status.HTTP_200_OK)
+
+class DoingFeedbackLoopReview(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, card_id):
+        dfbl_review = DoingFeedbackReview.objects.filter(user=request.user, card_id=card_id)
+        if dfbl_review.exists():
+            return Response({"Message": DoingFeedbackReviewModelSerializer(dfbl_review.first()).data}, status=status.HTTP_200_OK)
+        return Response({"Message": "No DFBL review found"}, status=status.HTTP_200_OK)
+
+    # Create and update dfbl review for card user is currently doing during dfbl study session
+    def patch(self, request):
+        card = Card.objects.get(id=request.data['card'])
+
+        dfbl_review = DoingFeedbackReview.objects.create(user=request.user, card=card)
+        dfbl_serializer = DoingFeedbackReviewSerializer(dfbl_review, data=request.data, context={"user": request.user}, partial=True)
+
+        if dfbl_serializer.is_valid():
+            dfbl_serializer.save()
+            return Response({"Message": "Successfully created DFBL review"}, status=status.HTTP_200_OK)
+
+        return Response(dfbl_serializer.errors, status=status.HTTP_400_BAD_REQUEST)

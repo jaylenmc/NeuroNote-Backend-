@@ -7,13 +7,14 @@ from rest_framework.response import Response
 from rest_framework import status
 from flashcards.models import Card, Deck
 from datetime import date
-from .services import clean_claude_response, validate_dfbl_response
+from .services import clean_claude_response, validate_dfbl_response, validate_quiz_generation
 from rest_framework.decorators import permission_classes, api_view
 import json
 import tiktoken
 import os
 from .models import DFBLUserInteraction, UPSUserInteraction
-from .serializers import DFBLSerializer
+from .serializers import DFBLSerializer, TestGenerator
+from tests.serializers import QuizSerilizer
 
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
@@ -82,7 +83,7 @@ class CardsGen(APIView):
 
         try:
             message = client.messages.create(
-                model="claude-3-7-sonnet-20250219",
+                model="claude-sonnet-4-6",
                 max_tokens=10000,
                 temperature=0.7,
                 system="Generate a list of flashcards based on the prompt. Each card should be separated by '## Card', and each card should follow this format:\n## Card\n**Front**: <front>\n**Back**: <back>. Just respond with the flashcards, no other text.",
@@ -125,60 +126,7 @@ class CardsGen(APIView):
         except Exception as e:
             return Response({'Error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def generate_quiz(request):
-    prompt = request.data.get('prompt')
-    if not prompt:
-        return Response({'Message': 'Requires prompt'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
-            max_tokens=1000,
-            temperature=0.7,
-            system = """Generate a quiz with as many multiple choice questions as needed based on the user’s prompt.
-            Format each question as JSON in the following structure:
-            {
-            "questions": [
-                {
-                "question": "What is Django?",
-                "answer_type": "mc",
-                "choices": [
-                    {"text": "A JavaScript framework", "is_correct": false},
-                    {"text": "A Python web framework", "is_correct": true},
-                    {"text": "A database management system", "is_correct": false},
-                    {"text": "A front-end design tool", "is_correct": false}
-                ]
-                }
-            ]
-            }
-            Return only the JSON object. No explanations or extra text. And make sure nothings has missing values/information""",
-            messages=[
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": prompt}]
-                }
-            ]
-        )
-        # encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
-        raw_output = message.content
-        text_output = "".join(
-            block.text for block in raw_output if getattr(block, 'type', "") == 'text'
-        )
 
-        cleaned_text = text_output.strip()
-
-        if cleaned_text.startswith("```json"):
-            cleaned_text = cleaned_text[len("```json"):].strip()
-
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text[:-3].strip()
-        data = json.loads(text_output)
-
-        return Response(data, status=status.HTTP_200_OK)
-    except Exception as e:
-            return Response({'Error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
 def cards_to_quiz(user_answers):
     if not user_answers:
@@ -214,6 +162,79 @@ def cards_to_quiz(user_answers):
         return cleaned_response
     except Exception as e:
         return {'Error': str(e)}
+    
+# ------------------------------------------------ Quiz Generator ------------------------------------------------
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_quiz(request):
+    serializer = TestGenerator(data=request.data) 
+    serializer.is_valid(raise_exception=True)
+    validated_data = serializer.validated_data
+
+    prompt = f"""
+    Make a quiz about: {validated_data.get('user_prompt')}.
+    With the preferred quiz type as {validated_data.get("preferred_quiz_type", "written/multiple choice")}.
+    Create this quiz with {validated_data.get("question_num", "5")} number of questions.
+    """
+
+    try:
+        message = client.messages.create(
+            model = "claude-sonnet-4-6",
+            max_tokens=5000,
+            temperature = 1,
+            system = """
+            You are a professor who's making a quiz for their student that challenges and pushes them to their limits,
+
+            1. Always produce exactly the number of questions requested.
+            2. Only return valid JSON, no quotes, no explanations.
+            3. Quiz types:
+                - mc = multiple choice
+                - wr = written
+                - wrmc = both
+            4. Multiple choice answers must have at least 3 options.
+            5. Multiple choice answers must include 'is_correct' exactly "True" or "False".
+            6. Written questions must include the key 'answer'.
+
+            Expected JSON response format:
+            {
+                "quiz_title": "insert title",
+                "quiz_subject": "insert subject of quiz",
+                "quiz_type": "mc or wr or wrmc",
+                "questions": [
+                    {
+                        "question": "insert question",
+                        "answer (if wr (written) question type)": "insert answer",
+                        "question_type": "wr"
+                    },
+                    {
+                        "question": "insert question",
+                        "answers (if mc (multiple choice) question type)": [
+                            {"answer": "insert answer", "is_correct": "True or False"},
+                            {"answer": "insert answer", "is_correct": "True or False"},
+                            {"answer": "insert answer", "is_correct": "True or False"},
+                            ...
+                        ],
+                        "question_type": "mc"
+                    }, ...
+            }
+
+            """,
+            messages = [
+                {'role': 'user', 'content': prompt}
+            ]
+        )
+        response = validate_quiz_generation(message.content[0].text)
+
+        merged_data = {**validated_data, **response}
+        serialized = TestGenerator(data=merged_data, context={"user": request.user})
+
+        serialized.is_valid(raise_exception=True)
+        serialized.save()
+
+        quiz_serialized = QuizSerilizer(serialized.instance)
+        return Response(quiz_serialized.data, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"Error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 # ------------------------------------------------ Doing + Feedback Loop ------------------------------------------------
 
@@ -488,7 +509,7 @@ class DoingFeedbackLoop(APIView):
             })
 
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-6",
             max_tokens=3000,
             system=system,
             messages=interaction_history
@@ -501,45 +522,6 @@ class DoingFeedbackLoop(APIView):
         dfbl_serializer.save(validated_data=validated_data)
 
         return Response(message.content[0].text, status=status.HTTP_200_OK)
-
-        # dfbl_interaction.delete()
-        # message = client.messages.create(
-        #         model="claude-3-7-sonnet-20250219",
-        #         max_tokens=1000,
-        #         system='''
-        #             You are an expert tutor trained in cognitive science and deliberate practice.
-        #             Your goal is to help the user master understanding of a concept or question by giving high-quality,
-        #             critical feedback — without ever revealing the correct answer directly.
-
-        #             Your behavior and principles:
-        #                 1.	Never give away the correct answer.
-        #             Instead, guide the user through reasoning, point out misconceptions, and challenge their assumptions.
-        #                 2.	Be honest and direct.
-        #             If the user's answer is weak, say so clearly. Never say something is “good” or “almost right” if it’s not.
-        #                 3.	Be specific.
-        #             Identify what exactly is wrong or missing and why it matters.
-        #                 4.	Encourage improvement, not perfection.
-        #             Suggest how to rethink or improve the explanation rather than repeating memorized definitions.
-        #                 5.	Foster deep learning.
-        #             Push the user to connect ideas, use examples, and explain reasoning, not just recall facts..
-        #                 6. Grade the users answer
-        #             Label this grade as "Verdict", give it the value of correct, incorrect or anything between. But have another variable called
-        #             "grade" where you give a percentage.
-        #         ''',
-        #         messages=[{
-        #             "role": "user",
-        #             "content":[{"type": "text", "text": f"Question: {request.data.get("question")}\nCorrect answer: {request.data.get("correct_answer")}\nUser answer: {request.data.get("user_answer")}\nPrevious attempts: {request.data.get("attempt_count")}"}]
-        #         }]
-        # )
-        # DFBLUserInteraction.objects.create(
-        #         user=request.user,
-        #         question=request.data.get("question"),
-        #         attempts=request.data.get("attempt_count"),
-        #         correct_answer=request.data.get("correct_answer"),
-        #         user_answer=request.data.get("user_answer"),
-        #         neuro_response=message.content[0].text
-        #     )
-        # return Response(message.content[0].text, status=status.HTTP_200_OK)
 
 # ------------------------------------------------ Understanding + Problem Solving ------------------------------------------------
 
@@ -585,7 +567,7 @@ def understand_problem_solving(request):
             }]
         })
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-6",
             max_tokens=1000,
             system='''
             You are an expert educator and communication coach. Your task is to grade a student’s explanation of a concept based 
@@ -671,7 +653,7 @@ def understand_problem_solving(request):
             }]
         })
         message = client.messages.create(
-            model="claude-3-7-sonnet-20250219",
+            model="claude-sonnet-4-6",
             max_tokens=1000,
             system='''
             You are an expert educator and communication coach. Your task is to grade a student’s
