@@ -37,7 +37,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 ]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env('DEBUG')
+DEBUG = bool(env('DEBUG'))
 
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
 
