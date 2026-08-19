@@ -37,7 +37,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 ]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.getenv("DEBUG", "False") == "True"
 
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
 
@@ -153,7 +153,16 @@ if DEBUG == False:
     DATABASES = {
         "default": dj_database_url.parse(DATABASE_URL, conn_max_age=600)
     }
-    REDIRECT_URI = env('PROD_REDIRECT_URI')
+    REDIRECT_URI = os.getenv('PROD_REDIRECT_URI')
+    # Google Auth Credentials
+    SECRET_KEY = os.getenv('SECRET_KEY')
+    GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+    GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+
+    # Railway Bucket Credentials
+    AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+    AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+    AWS_ENDPOINT_URL= os.getenv("AWS_ENDPOINT_URL")
 else:
     DATABASES = {
         'default': {
@@ -166,6 +175,15 @@ else:
         }
     }
     REDIRECT_URI = env('DEV_CLIENT_REDIRECT_URI')
+    # Google Auth Credentials
+    SECRET_KEY = env('SECRET_KEY')
+    GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
+    GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
+
+    # Railway Bucket Credentials
+    AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
+    AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
+    AWS_ENDPOINT_URL= env("AWS_ENDPOINT_URL")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -220,15 +238,5 @@ LOGIN_URL = '/'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT =  BASE_DIR / 'media'
-
-# Google Auth Credentials
-SECRET_KEY = env('SECRET_KEY')
-GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = env('GOOGLE_CLIENT_SECRET')
-
-# Railway Bucket Credentials
-AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY')
-AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID')
-AWS_ENDPOINT_URL= env("AWS_ENDPOINT_URL")
 
 AUTH_USER_MODEL = 'authentication.User'
