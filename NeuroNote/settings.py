@@ -87,8 +87,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:5173',
-    'https://myneuronote.com',
-    'https://neuro-note-frontend-git-main-jaylenmcs-projects.vercel.app'
+    'https://www.myneuronote.com',
 ]
 
 CORS_ALLOW_METHODS = [
