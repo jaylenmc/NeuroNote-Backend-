@@ -1,0 +1,12 @@
+NeuroNote — You're on the waitlist!
+
+Hi{% if email %} {{ email }}{% endif %},
+
+Thanks for signing up for NeuroNote. You're officially on the waitlist.
+
+We'll email you as soon as the app is ready for you to use. In the meantime, we're building tools to help you study smarter!
+
+Visit us: https://myneuronote.com
+
+— The NeuroNote Team
+support@myneuronote.com

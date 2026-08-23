@@ -11,6 +11,8 @@ from rest_framework import status
 from rest_framework.views import APIView
 from .services import save_user, verify_google_id_token
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
 
 @api_view(['GET'])
 def googleApi(request):
@@ -55,15 +57,20 @@ def googleApi(request):
         )
     save_user_data = verify_google_id_token(id_token)
 
+    # Temporary (collecting emails for waitlist until app is finished)
     if save_user_data['user']['email'] != "jayzilla195@gmail.com":
-        get_user_model().objects.get_or_create(email=save_user_data['user']['email'])
+        obj, created = get_user_model().objects.get_or_create(email=save_user_data['user']['email'])
+        if not created:
+            return Response(
+                {'Message': 'User already in waitlist.', 'waitlist': True},
+                status=status.HTTP_409_CONFLICT,
+            )
         return Response(
-            {'Message': 'Successfully signed up.'},
+            {'Message': 'Successfully signed up.', 'waitlist': True},
             status=status.HTTP_200_OK,
         )
-
-    response = Response(save_user_data, status=status.HTTP_200_OK)
-    return response
+    save_user_data['waitlist'] = False
+    return Response(save_user_data, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 def refresh_google_access_token(request):
@@ -98,47 +105,76 @@ class NeuroCreateUser(APIView):
 
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
-
-        if email != "jayzilla195@gmail.com":
-            get_user_model().objects.create_user(email=email, password=password)
-            return Response(
-                {'Message': 'Successfully signed up.'},
-                status=status.HTTP_200_OK,
-            )
-
         User = get_user_model()
         auth_type = request.query_params.get('type')
+
         if auth_type == 'login':            
             user = User.objects.filter(email=email).exists()
             if not user:
                 return Response(
-                    {'detail': 'User with this email does not exist.'},
+                    {'detail': 'User with this email does not exist.', "waitlist": False},
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
-
             user = User.objects.filter(email=email).first()
-
             if not user.check_password(password):
                 return Response(
-                    {'detail': 'Invalid password.'},
+                    {'detail': 'Invalid password.', "waitlist": False},
                     status=status.HTTP_401_UNAUTHORIZED,
                 )
-
+            # Temporary (collecting emails for waitlist until app is finished)
+            if user.email != "jayzilla195@gmail.com":
+                return Response(
+                    {'Message': 'User already in waitlist.', "waitlist": True},
+                    status=status.HTTP_200_OK,
+                )
             jwt_data = RefreshToken.for_user(user)
-
             return Response({
-                "user": serializer.data, 
+                "user": serializer.data,
+                "waitlist": False,
                 "jwt_data": {
                     "access": str(jwt_data.access_token),
                     "refresh": str(jwt_data),
                 }}, status=status.HTTP_200_OK)
+
         elif auth_type == 'signup':
             if User.objects.filter(email=email).exists():
+                if email != "jayzilla195@gmail.com":
+                    return Response(
+                        {'Message': 'User already in waitlist.', "waitlist": True},
+                        status=status.HTTP_200_OK,
+                    )
                 return Response(
                     {'detail': 'User with this email already exists.'},
                     status=status.HTTP_409_CONFLICT,
                 )
-            return Response(save_user({"email": email, "password": password}, auth_provider='password'), status=status.HTTP_201_CREATED)
+            # Temporary (collecting emails for waitlist until app is finished)
+            if email != "jayzilla195@gmail.com":
+                text_content = render_to_string(
+                    "emails/my_email.txt",
+                    context={"email": email},
+                )
+                html_content = render_to_string(
+                    "emails/my_email.html",
+                    context={"email": email},
+                )
+
+                msg = EmailMultiAlternatives(
+                    subject="You're on the waitlist!",
+                    body=text_content,
+                    from_email="support@myneuronote.com",
+                    to=[email]
+                )
+
+                # Lastly, attach the HTML content to the email instance and send.
+                msg.attach_alternative(html_content, "text/html")
+                msg.send()
+                return Response(
+                    {'Message': 'User successfully signed up for waitlist.', "waitlist": True},
+                    status=status.HTTP_200_OK,
+                )
+            save_user_data = save_user({"email": email, "password": password}, auth_provider='password')
+            save_user_data['waitlist'] = False
+            return Response(save_user_data, status=status.HTTP_201_CREATED)
         else:
             return Response(
                 {'Message': 'Query parameter "type" is required and must be "signup" or "login".'},

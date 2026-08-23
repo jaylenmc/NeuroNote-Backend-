@@ -73,6 +73,17 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
+# Sending emails in development
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# Sending emails in production
+MAILERS = {
+    "default": {
+        "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+        "OPTIONS": {
+            "host": "neuronote-backend-production.up.railway.app"
+        },
+    }
+}
 
 from datetime import timedelta
 

@@ -4,7 +4,8 @@ from django.urls import reverse
 from rest_framework import status
 from unittest.mock import patch
 from unittest.mock import MagicMock
-from neuro_profile.models import NeuroProfile, PinnedResourcesDashboard
+from neuro_profile.models import NeuroProfile
+from django.core.mail import outbox
 
 class AuthUserTests(APITestCase):
     @classmethod
@@ -118,14 +119,17 @@ class CustomUserTest(APITestCase):
             status.HTTP_200_OK,
             msg=f"Error -> {response.data}",
         )
+        self.assertIn('Message', response.data)
         self.assertEqual(
-            response.data['user']['email'],
-            login_data['email'],
-            msg=f"User email error: {response.data}",
+            response.data['waitlist'],
+            True,
+            msg=f"Waitlist error: {response.data}",
         )
-        self.assertIn('jwt_data', response.data)
-        self.assertIn(('access'), response.data['jwt_data'])
-        self.assertIn('refresh', response.data['jwt_data'])
+        self.assertEqual(
+            response.data['Message'],
+            'User already in waitlist.',
+            msg=f"Message error: {response.data}",
+        )
 
     def test_neuro_create_user_login_incorrect_email(self):
         url = reverse('neuro-create-user')
@@ -174,9 +178,46 @@ class CustomUserTest(APITestCase):
         )
         self.assertEqual(
             response.status_code,
-            status.HTTP_409_CONFLICT,
+            status.HTTP_200_OK,
             msg=f"Error -> {response.data}",
         )
+        self.assertIn('Message', response.data)
+        self.assertEqual(
+            response.data['waitlist'],
+            True,
+            msg=f"Waitlist error: {response.data}",
+        )
+        self.assertEqual(
+            response.data['Message'],
+            'User already in waitlist.',
+            msg=f"Message error: {response.data}",
+        )
+
+    def test_neuro_create_user_signup_waitlist_new_user(self):
+        url = reverse('neuro-create-user')
+
+        signup_data = {
+            'email': 'jaylenmc05@gmail.com',
+            'password': 'gibberish',
+        }
+        response = self.client.post(f"{url}?type=signup", data=signup_data, format='json')
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Error -> {response.data}",
+        )
+        self.assertIn('Message', response.data)
+        self.assertEqual(
+            response.data['waitlist'],
+            True,
+            msg=f"Waitlist error: {response.data}",
+        )
+        self.assertEqual(
+            response.data['Message'],
+            'User successfully signed up for waitlist.',
+            msg=f"Message error: {response.data}",
+        )
+        print(outbox)
     
     def test_neuro_create_user_signup_incorrect_email(self):
         url = reverse('neuro-create-user')
