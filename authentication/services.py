@@ -19,6 +19,7 @@ def save_neuro_profile(user: User):
         PinnedResourcesDashboard.objects.create(user=neuro_profile)
 
 def save_user(user: dict, auth_provider: str) -> dict:
+    user_data = dict()
     if auth_provider == 'password':
         user_data_serializer = AuthUserModelSerializer(data=user)
     elif auth_provider == 'google':
@@ -29,13 +30,20 @@ def save_user(user: dict, auth_provider: str) -> dict:
     user_data_serializer.is_valid(raise_exception=True)
     user_obj = user_data_serializer.save()
 
-    jwt_token_info = RefreshToken.for_user(user_obj)
-    save_neuro_profile(user_obj)
+    if isinstance(user_obj, tuple):
+        jwt_token_info = RefreshToken.for_user(user_obj[0])
+        save_neuro_profile(user_obj[0])
+        user_data["created"] = user_obj[1]
+        user_data["user"] = user_obj[0]
+    else:
+        user_data["user"] = user_obj
+        jwt_token_info = RefreshToken.for_user(user_obj)
+        save_neuro_profile(user_obj)
+    
+    user_data["access"] = str(jwt_token_info.access_token)
+    user_data["refresh"] = str(jwt_token_info)
 
-    return {'user': user_data_serializer.data, 'jwt_data': {
-        'access': str(jwt_token_info.access_token),
-        'refresh': str(jwt_token_info),
-    }}
+    return user_data
 
 def verify_google_id_token(id_token: str) -> dict:
     try:

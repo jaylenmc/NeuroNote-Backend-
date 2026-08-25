@@ -14,7 +14,7 @@ class GoogleAuthUserModelSerializer(serializers.ModelSerializer):
             email=validated_data['email'],
             password=None
             )
-        return obj
+        return (obj, created)
 
 class AuthUserModelSerializer(serializers.ModelSerializer):
     password = serializers.CharField(required=True, min_length=8, max_length=16, write_only=True)

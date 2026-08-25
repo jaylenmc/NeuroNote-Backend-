@@ -1,7 +1,7 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
-import secrets
+from .models import User
 import jwt
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -56,19 +56,37 @@ def googleApi(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     save_user_data = verify_google_id_token(id_token)
-
     # Temporary (collecting emails for waitlist until app is finished)
-    if save_user_data['user']['email'] != "jayzilla195@gmail.com":
-        obj, created = get_user_model().objects.get_or_create(email=save_user_data['user']['email'])
-        if not created:
+    if save_user_data['user'].email != "jayzilla195@gmail.com":
+        if not save_user_data['created']:
             return Response(
-                {'Message': 'User already in waitlist.', 'waitlist': True},
+                {'Message': 'User already in waitlist.', 'waitlist': False},
                 status=status.HTTP_409_CONFLICT,
             )
-        return Response(
-            {'Message': 'Successfully signed up.', 'waitlist': True},
-            status=status.HTTP_200_OK,
-        )
+        else:
+            text_content = render_to_string(
+                    "emails/my_email.txt",
+                    context={"email": save_user_data['user'].email},
+            )
+            html_content = render_to_string(
+                "emails/my_email.html",
+                context={"email": save_user_data['user'].email},
+            )
+
+            msg = EmailMultiAlternatives(
+                subject="You're on the waitlist!",
+                body=text_content,
+                from_email="support@myneuronote.com",
+                to=[save_user_data['user'].email],
+            )
+
+            # Lastly, attach the HTML content to the email instance and send.
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
+            return Response(
+                {'Message': 'Successfully signed up.', 'waitlist': True},
+                status=status.HTTP_200_OK,
+            )
     save_user_data['waitlist'] = False
     return Response(save_user_data, status=status.HTTP_200_OK)
 
@@ -106,6 +124,7 @@ class NeuroCreateUser(APIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
         User = get_user_model()
+        print(f"User all: {User.objects.all()}")
         auth_type = request.query_params.get('type')
 
         if auth_type == 'login':            
@@ -124,9 +143,10 @@ class NeuroCreateUser(APIView):
             # Temporary (collecting emails for waitlist until app is finished)
             if user.email != "jayzilla195@gmail.com":
                 return Response(
-                    {'Message': 'User already in waitlist.', "waitlist": True},
+                    {'Message': 'User already in waitlist.', "waitlist": False},
                     status=status.HTTP_200_OK,
                 )
+                
             jwt_data = RefreshToken.for_user(user)
             return Response({
                 "user": serializer.data,
@@ -137,11 +157,12 @@ class NeuroCreateUser(APIView):
                 }}, status=status.HTTP_200_OK)
 
         elif auth_type == 'signup':
+            print(User.objects.filter(email=email))
             if User.objects.filter(email=email).exists():
                 if email != "jayzilla195@gmail.com":
                     return Response(
-                        {'Message': 'User already in waitlist.', "waitlist": True},
-                        status=status.HTTP_200_OK,
+                        {'Message': 'User already in waitlist.', "waitlist": False},
+                        status=status.HTTP_409_CONFLICT,
                     )
                 return Response(
                     {'detail': 'User with this email already exists.'},
@@ -149,6 +170,7 @@ class NeuroCreateUser(APIView):
                 )
             # Temporary (collecting emails for waitlist until app is finished)
             if email != "jayzilla195@gmail.com":
+                save_user({"email": email, "password": password}, auth_provider='password')
                 text_content = render_to_string(
                     "emails/my_email.txt",
                     context={"email": email},
@@ -162,7 +184,7 @@ class NeuroCreateUser(APIView):
                     subject="You're on the waitlist!",
                     body=text_content,
                     from_email="support@myneuronote.com",
-                    to=[email]
+                    to=[email],
                 )
 
                 # Lastly, attach the HTML content to the email instance and send.

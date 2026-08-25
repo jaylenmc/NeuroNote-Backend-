@@ -18,6 +18,7 @@ class CustomManager(UserManager):
     def get_or_create(self, email, password=None):
         try:
             user = self.get(email=email)
+            print(user)
             return user, False
         except self.model.DoesNotExist:
             return self.create_user(email=email, password=password), True

@@ -73,14 +73,21 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
-# Sending emails in development
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# if DEBUG:
+#     # Sending emails in development
+#     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# else:
 # Sending emails in production
 MAILERS = {
     "default": {
         "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
         "OPTIONS": {
-            "host": "neuronote-backend-production.up.railway.app"
+            "host": "smtp.gmail.com",
+            "password": os.getenv('SMTP_PASSWORD'),
+            'use_tls': True,
+            "port": 587,
+            'username': "support@myneuronote.com",
+            'timeout': 10
         },
     }
 }
