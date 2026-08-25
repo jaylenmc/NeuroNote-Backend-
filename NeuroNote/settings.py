@@ -82,12 +82,12 @@ MAILERS = {
     "default": {
         "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
         "OPTIONS": {
-            "host": "smtp.gmail.com",
+            "host": os.getenv('SMTP_HOST'),
             "password": os.getenv('SMTP_PASSWORD'),
-            'use_tls': True,
-            "port": 587,
-            'username': "support@myneuronote.com",
-            'timeout': 10
+            'use_tls': os.getenv('SMTP_USE_TLS'),
+            "port": os.getenv('SMTP_PORT'),
+            'username': os.getenv('SMTP_USERNAME'),
+            'timeout': os.getenv('SMTP_TIMEOUT')
         },
     }
 }
