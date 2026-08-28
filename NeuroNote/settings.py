@@ -86,8 +86,7 @@ MAILERS = {
             "password": os.getenv('SMTP_PASSWORD'),
             'use_tls': os.getenv('SMTP_USE_TLS'),
             "port": os.getenv('SMTP_PORT'),
-            'username': os.getenv('SMTP_USERNAME'),
-            'timeout': os.getenv('SMTP_TIMEOUT')
+            'username': os.getenv('SMTP_USERNAME')
         },
     }
 }
