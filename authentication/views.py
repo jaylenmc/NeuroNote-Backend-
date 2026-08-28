@@ -13,6 +13,7 @@ from .services import save_user, verify_google_id_token
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
+from django.db import transaction
 
 @api_view(['GET'])
 def googleApi(request):
@@ -170,30 +171,37 @@ class NeuroCreateUser(APIView):
                 )
             # Temporary (collecting emails for waitlist until app is finished)
             if email != "jayzilla195@gmail.com":
-                save_user({"email": email, "password": password}, auth_provider='password')
-                text_content = render_to_string(
-                    "emails/my_email.txt",
-                    context={"email": email},
-                )
-                html_content = render_to_string(
-                    "emails/my_email.html",
-                    context={"email": email},
-                )
+                try:
+                    with transaction.atomic():
+                        save_user({"email": email, "password": password}, auth_provider='password')
+                        text_content = render_to_string(
+                            "emails/my_email.txt",
+                            context={"email": email},
+                        )
+                        html_content = render_to_string(
+                            "emails/my_email.html",
+                            context={"email": email},
+                        )
 
-                msg = EmailMultiAlternatives(
-                    subject="You're on the waitlist!",
-                    body=text_content,
-                    from_email="support@myneuronote.com",
-                    to=[email],
-                )
+                        msg = EmailMultiAlternatives(
+                            subject="You're on the waitlist!",
+                            body=text_content,
+                            from_email="support@myneuronote.com",
+                            to=[email],
+                        )
 
-                # Lastly, attach the HTML content to the email instance and send.
-                msg.attach_alternative(html_content, "text/html")
-                msg.send()
-                return Response(
-                    {'Message': 'User successfully signed up for waitlist.', "waitlist": True},
-                    status=status.HTTP_200_OK,
-                )
+                        # Lastly, attach the HTML content to the email instance and send.
+                        msg.attach_alternative(html_content, "text/html")
+                        msg.send()
+                        return Response(
+                            {'Message': 'User successfully signed up for waitlist.', "waitlist": True},
+                            status=status.HTTP_200_OK,
+                        )
+                except Exception as e:
+                    return Response(
+                        {'Message': f"Error saving user. -> {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             save_user_data = save_user({"email": email, "password": password}, auth_provider='password')
             save_user_data['waitlist'] = False
             return Response(save_user_data, status=status.HTTP_201_CREATED)
