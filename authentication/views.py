@@ -1,19 +1,18 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
-from .models import User
-import jwt
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from .serializers import AuthUserModelSerializer
 from datetime import datetime, timedelta, timezone as dt_timezone
 from rest_framework import status
 from rest_framework.views import APIView
 from .services import save_user, verify_google_id_token
+from django.conf import settings
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.db import transaction
+import os
 
 @api_view(['GET'])
 def googleApi(request):
@@ -173,6 +172,7 @@ class NeuroCreateUser(APIView):
             if email != "jayzilla195@gmail.com":
                 try:
                     with transaction.atomic():
+                        os.environ['SMTP_TIMEOUT'] = str(int(os.environ.get('SMTP_TIMEOUT', '10').strip()))
                         save_user({"email": email, "password": password}, auth_provider='password')
                         text_content = render_to_string(
                             "emails/my_email.txt",
@@ -198,10 +198,7 @@ class NeuroCreateUser(APIView):
                             status=status.HTTP_200_OK,
                         )
                 except Exception as e:
-                    return Response(
-                        {'Message': f"Error saving user. -> {str(e)}"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                    raise e
             save_user_data = save_user({"email": email, "password": password}, auth_provider='password')
             save_user_data['waitlist'] = False
             return Response(save_user_data, status=status.HTTP_201_CREATED)
