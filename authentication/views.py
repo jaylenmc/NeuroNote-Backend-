@@ -172,7 +172,6 @@ class NeuroCreateUser(APIView):
             if email != "jayzilla195@gmail.com":
                 try:
                     with transaction.atomic():
-                        os.environ['SMTP_TIMEOUT'] = str(int(os.environ.get('SMTP_TIMEOUT', '10').strip()))
                         save_user({"email": email, "password": password}, auth_provider='password')
                         text_content = render_to_string(
                             "emails/my_email.txt",
