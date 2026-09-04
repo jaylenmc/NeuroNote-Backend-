@@ -78,18 +78,15 @@ REST_FRAMEWORK = {
 #     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 # else:
 # Sending emails in production
-MAILERS = {
-    "default": {
-        "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
-        "OPTIONS": {
-            "host": os.getenv('SMTP_HOST'),
-            "password": os.getenv('SMTP_PASSWORD'),
-            'use_tls': os.getenv('SMTP_USE_TLS'),
-            "port": int(os.getenv('SMTP_PORT')),
-            'username': os.getenv('SMTP_USERNAME')
-        },
-    }
-}
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+
+EMAIL_TIMEOUT = int(os.environ.get('SMTP_TIMEOUT', 5)) 
+
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+EMAIL_USE_TLS = True
 
 from datetime import timedelta
 
