@@ -73,20 +73,27 @@ REST_FRAMEWORK = {
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
-# if DEBUG:
-#     # Sending emails in development
-#     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
-# else:
-# Sending emails in production
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.environ.get('EMAIL_HOST')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = os.environ.get('EMAIL_HOST')
+# EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
 
-EMAIL_TIMEOUT = int(os.environ.get('SMTP_TIMEOUT', 5)) 
+# EMAIL_TIMEOUT = int(os.environ.get('SMTP_TIMEOUT', 5)) 
 
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
-EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER')
+# EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD')
+# EMAIL_USE_TLS = True
+
+# MAILERS = {
+#     "default": {
+#         "BACKEND": "django.core.mail.backends.smtp.EmailBackend",
+#         "OPTIONS": {
+#             "host": os.environ.get('EMAIL_HOST'),
+#             "use_tls": True,
+#             "username": os.environ.get('EMAIL_HOST_USER'),
+#             "password": os.environ.get('EMAIL_HOST_PASSWORD'),
+#         },
+#     },
+# }
 
 from datetime import timedelta
 

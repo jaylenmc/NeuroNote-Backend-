@@ -12,7 +12,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.db import transaction
-import os
 
 @api_view(['GET'])
 def googleApi(request):
@@ -56,39 +55,39 @@ def googleApi(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     save_user_data = verify_google_id_token(id_token)
-    # Temporary (collecting emails for waitlist until app is finished)
     if save_user_data['user'].email != "jayzilla195@gmail.com":
-        if not save_user_data['created']:
-            return Response(
-                {'Message': 'User already in waitlist.', 'waitlist': False},
-                status=status.HTTP_409_CONFLICT,
-            )
-        else:
-            text_content = render_to_string(
-                    "emails/my_email.txt",
-                    context={"email": save_user_data['user'].email},
-            )
-            html_content = render_to_string(
-                "emails/my_email.html",
-                context={"email": save_user_data['user'].email},
-            )
+        # if not save_user_data['created']:
+        #     return Response(
+        #         {'Message': 'User already in waitlist.', 'waitlist': False},
+        #         status=status.HTTP_409_CONFLICT,
+        #     )
+        # else:
+        #     text_content = render_to_string(
+        #             "emails/my_email.txt",
+        #             context={"email": save_user_data['user'].email},
+        #     )
+        #     html_content = render_to_string(
+        #         "emails/my_email.html",
+        #         context={"email": save_user_data['user'].email},
+        #     )
 
-            msg = EmailMultiAlternatives(
-                subject="You're on the waitlist!",
-                body=text_content,
-                from_email="support@myneuronote.com",
-                to=[save_user_data['user'].email],
-            )
+        #     msg = EmailMultiAlternatives(
+        #         subject="You're on the waitlist!",
+        #         body=text_content,
+        #         from_email="support@myneuronote.com",
+        #         to=[save_user_data['user'].email],
+        #     )
 
-            # Lastly, attach the HTML content to the email instance and send.
-            msg.attach_alternative(html_content, "text/html")
-            msg.send()
+        #     # Lastly, attach the HTML content to the email instance and send.
+        #     msg.attach_alternative(html_content, "text/html")
+        #     msg.send()
             return Response(
                 {'Message': 'Successfully signed up.', 'waitlist': True},
                 status=status.HTTP_200_OK,
             )
-    save_user_data['waitlist'] = False
-    return Response(save_user_data, status=status.HTTP_200_OK)
+    else:
+        save_user_data['waitlist'] = False
+        return Response(save_user_data, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 def refresh_google_access_token(request):
@@ -124,7 +123,6 @@ class NeuroCreateUser(APIView):
         email = serializer.validated_data['email']
         password = serializer.validated_data['password']
         User = get_user_model()
-        print(f"User all: {User.objects.all()}")
         auth_type = request.query_params.get('type')
 
         if auth_type == 'login':            
@@ -168,30 +166,29 @@ class NeuroCreateUser(APIView):
                     {'detail': 'User with this email already exists.'},
                     status=status.HTTP_409_CONFLICT,
                 )
-            # Temporary (collecting emails for waitlist until app is finished)
             if email != "jayzilla195@gmail.com":
                 try:
                     with transaction.atomic():
                         save_user({"email": email, "password": password}, auth_provider='password')
-                        text_content = render_to_string(
-                            "emails/my_email.txt",
-                            context={"email": email},
-                        )
-                        html_content = render_to_string(
-                            "emails/my_email.html",
-                            context={"email": email},
-                        )
+                        # text_content = render_to_string(
+                        #     "emails/my_email.txt",
+                        #     context={"email": email},
+                        # )
+                        # html_content = render_to_string(
+                        #     "emails/my_email.html",
+                        #     context={"email": email},
+                        # )
 
-                        msg = EmailMultiAlternatives(
-                            subject="You're on the waitlist!",
-                            body=text_content,
-                            from_email="support@myneuronote.com",
-                            to=[email],
-                        )
+                        # msg = EmailMultiAlternatives(
+                        #     subject="You're on the waitlist!",
+                        #     body=text_content,
+                        #     from_email="support@myneuronote.com",
+                        #     to=[email],
+                        # )
 
-                        # Lastly, attach the HTML content to the email instance and send.
-                        msg.attach_alternative(html_content, "text/html")
-                        msg.send()
+                        # # Lastly, attach the HTML content to the email instance and send.
+                        # msg.attach_alternative(html_content, "text/html")
+                        # msg.send()
                         return Response(
                             {'Message': 'User successfully signed up for waitlist.', "waitlist": True},
                             status=status.HTTP_200_OK,
