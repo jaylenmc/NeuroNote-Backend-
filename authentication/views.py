@@ -2,7 +2,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import requests
 from django.contrib.auth import get_user_model
-from .serializers import AuthUserModelSerializer
+from .serializers import AuthUserModelSerializer, GoogleAuthUserModelSerializer
 from datetime import datetime, timedelta, timezone as dt_timezone
 from rest_framework import status
 from rest_framework.views import APIView
@@ -55,39 +55,27 @@ def googleApi(request):
             status=status.HTTP_400_BAD_REQUEST,
         )
     save_user_data = verify_google_id_token(id_token)
-    if save_user_data['user'].email != "jayzilla195@gmail.com":
-        # if not save_user_data['created']:
-        #     return Response(
-        #         {'Message': 'User already in waitlist.', 'waitlist': False},
-        #         status=status.HTTP_409_CONFLICT,
-        #     )
-        # else:
-        #     text_content = render_to_string(
-        #             "emails/my_email.txt",
-        #             context={"email": save_user_data['user'].email},
-        #     )
-        #     html_content = render_to_string(
-        #         "emails/my_email.html",
-        #         context={"email": save_user_data['user'].email},
-        #     )
+    user = save_user_data['user']
 
-        #     msg = EmailMultiAlternatives(
-        #         subject="You're on the waitlist!",
-        #         body=text_content,
-        #         from_email="support@myneuronote.com",
-        #         to=[save_user_data['user'].email],
-        #     )
-
-        #     # Lastly, attach the HTML content to the email instance and send.
-        #     msg.attach_alternative(html_content, "text/html")
-        #     msg.send()
+    if user.email != "jayzilla195@gmail.com":
+        if not save_user_data.get('created', False):
             return Response(
-                {'Message': 'Successfully signed up.', 'waitlist': True},
-                status=status.HTTP_200_OK,
+                {'Message': 'User already in waitlist.', 'waitlist': False},
+                status=status.HTTP_409_CONFLICT,
             )
-    else:
-        save_user_data['waitlist'] = False
-        return Response(save_user_data, status=status.HTTP_200_OK)
+        return Response(
+            {'Message': 'User successfully signed up for waitlist.', 'waitlist': True},
+            status=status.HTTP_200_OK,
+        )
+
+    return Response({
+        'user': GoogleAuthUserModelSerializer(user).data,
+        'waitlist': False,
+        'jwt_data': {
+            'access': save_user_data['access'],
+            'refresh': save_user_data['refresh'],
+        },
+    }, status=status.HTTP_200_OK)
 
 @api_view(['POST'])
 def refresh_google_access_token(request):
