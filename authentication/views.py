@@ -43,7 +43,7 @@ def googleApi(request):
 
     if 'error' in google_token_info:
         return Response(
-            {'error': google_token_info.get('error_description', google_token_info['error'])},
+            {'error': f'Token info error -> {google_token_info.get('error_description', google_token_info['error'])}'},
             status=status.HTTP_400_BAD_REQUEST,
         )
 
