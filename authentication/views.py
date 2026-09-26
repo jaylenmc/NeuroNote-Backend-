@@ -39,13 +39,13 @@ def googleApi(request):
 
     access_token_url = 'https://oauth2.googleapis.com/token'
     token_response = requests.post(access_token_url, data=data)
-    google_token_info  = token_response.json()
 
     if 'error' in google_token_info:
         return Response(
-            {'error': f'Token info error -> {google_token_info.get('error_description', google_token_info['error'])}'},
+            {'error': f'Token info error -> {token_response.text}'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+    google_token_info  = token_response.json()
 
     id_token = google_token_info.get('id_token')
 
