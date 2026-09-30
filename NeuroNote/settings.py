@@ -37,7 +37,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 ]
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "False") == "True"
+DEBUG = os.getenv("DEBUG", "False") == 'True'
 
 ADMINS = [('jaylen','jaylenmc05@gmail.com')]
 
@@ -167,7 +167,6 @@ WSGI_APPLICATION = 'NeuroNote.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
 if DEBUG == False:
     DATABASE_URL = os.environ.get('DATABASE_URL')
     DATABASES = {

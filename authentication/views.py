@@ -39,15 +39,15 @@ def googleApi(request):
 
     access_token_url = 'https://oauth2.googleapis.com/token'
     token_response = requests.post(access_token_url, data=data)
+    token_response = token_response.json()
 
-    if 'error' in google_token_info:
+    if 'error' in token_response:
         return Response(
-            {'error': f'Token info error -> {token_response.text}'},
+            {'error': f'Token info error -> {token_response['error']}: {token_response['error_description']}'},
             status=status.HTTP_400_BAD_REQUEST,
         )
-    google_token_info  = token_response.json()
 
-    id_token = google_token_info.get('id_token')
+    id_token = token_response.get('id_token')
 
     if not id_token:
         return Response(
@@ -143,7 +143,6 @@ class NeuroCreateUser(APIView):
                 }}, status=status.HTTP_200_OK)
 
         elif auth_type == 'signup':
-            print(User.objects.filter(email=email))
             if User.objects.filter(email=email).exists():
                 if email != "jayzilla195@gmail.com":
                     return Response(
