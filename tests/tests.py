@@ -3,6 +3,7 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from .models import Quiz, Question, Answer
 from django.urls import reverse
+import time
 from rest_framework import status
 
 class QuizTestCase(APITestCase):
@@ -38,7 +39,12 @@ class QuizTestCase(APITestCase):
         print('-------------------------------- Before Patching --------------------------------')
         print(Quiz.objects.filter(user=self.user).first().topic)
         print([question.question_input for question in Quiz.objects.filter(user=self.user).first().questions.all()])
-        response = self.client.patch(url, data=data, format='json')
+        alist = list()
+        for _ in range (31):
+            start = time.perf_counter()
+            response = self.client.patch(url, data=data, format='json')
+            elapsed = time.perf_counter() - start
+            alist.append(float(f'{elapsed:.3f}'))
         self.assertEqual(
             response.status_code,
              status.HTTP_200_OK,
@@ -49,3 +55,4 @@ class QuizTestCase(APITestCase):
         print('-------------------------------- After Patching --------------------------------')
         print(Quiz.objects.filter(user=self.user).first().topic)
         print([question.question_input for question in Quiz.objects.filter(user=self.user).first().questions.all()])
+        print(f"Average PATCH response time: {sum(alist) / len(alist)}s")

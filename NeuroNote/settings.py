@@ -193,7 +193,7 @@ else:
             'PORT': env('DB_PORT'),
         }
     }
-    REDIRECT_URI = env('DEV_CLIENT_REDIRECT_URI')
+    REDIRECT_URI = env('DEV_BACKEND_REDIRECT_URI')
     # Google Auth Credentials
     SECRET_KEY = env('SECRET_KEY')
     GOOGLE_CLIENT_ID = env('GOOGLE_CLIENT_ID')

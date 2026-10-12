@@ -85,7 +85,7 @@ class QuizView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         user_data = serializer.validated_data
-        
+        # TODO: Remove prefetch related
         quiz = Quiz.objects.filter(user=request.user, id=quiz_id).prefetch_related('questions', 'questions__answers')
         print(quiz)
 
@@ -126,7 +126,6 @@ class QuizQuestions(APIView):
                 return Response({'Detail': 'Quiz not found'}, status=status.HTTP_404_NOT_FOUND)
                 
             questions = Question.objects.filter(quiz=quiz)
-            
             
             quiz_details_dict = {}
 

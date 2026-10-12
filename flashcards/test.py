@@ -2,9 +2,8 @@ from rest_framework.test import APITestCase
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from .models import Card, Deck, ReviewLog
-from django.utils import timezone
 from django.urls import reverse
-from freezegun import freeze_time
+import time
 from django.contrib.auth import get_user_model
 
 
@@ -115,7 +114,7 @@ class CardTestCase(APITestCase):
             Status Code Error: {response.data}"""
             )
         self.assertTrue(
-            all([ele in {"question", "answer", "card_deck", "bucket", "last_review_date"} for ele in response.data]),
+            all([ele in {"id", "question", "answer", "card_deck", "bucket", "last_review_date", "last_reviewed_at"} for ele in response.data]),
             msg=f"""========================== Test Cards Post (TC: Perfect Request) ==========================\n
             Key in response doesn't match expected keys: {response.data}"""
         )
@@ -146,7 +145,7 @@ class CardTestCase(APITestCase):
             Status Code Error: {response.data}"""
         )
         self.assertTrue(
-            all([set(ele.keys()) == {"answer", "question", "card_deck", "bucket", "last_review_date"} for ele in response.data]),
+            all([{"answer", "question", "card_deck", "bucket", "last_review_date", "id", "last_reviewed_at"}.issubset(set(ele.keys())) for ele in response.data]),
             msg=f"""========================== Test Cards Get (TC: Perfect Request) ==========================\n
             Keys dont match expected response keys: {response.data}"""
         )
@@ -163,7 +162,7 @@ class CardTestCase(APITestCase):
             Status Code Error: {response.data}"""
         )
         self.assertTrue(
-            all([set(ele.keys()) == {"answer", "question", "card_deck", "bucket", "last_review_date"} for ele in response.data]),
+            all([{"answer", "question", "card_deck", "bucket", "last_review_date", "id", "last_reviewed_at"}.issubset(set(ele.keys())) for ele in response.data]),
             msg=f"""========================== Test Cards Get (TC: Perfect Request) ==========================\n
             Keys dont match expected response keys: {response.data}"""
         )
@@ -218,90 +217,180 @@ class CardTestCase(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         print(f'response data: {response.data}')
 
-    def test_review_card_times(self):
-        print("==================== Review Card Times ====================")
-        card = Card.objects.get(id=self.cards.pop().pk)
-        print(f'Before update: {card.scheduled_date}')
-
-        with freeze_time("2025-07-07 20:40:51+00:00"):
-            card.update_sm21(rating=1)
-            print('--------------------------------')
-            print(f'After update 1: {card.scheduled_date}')
-            print(f'Stability: {card.stability}')
-
-        with freeze_time("2025-07-09 20:41:00+00:00"):
-            card.refresh_from_db()
-            card.update_sm21(rating=1)
-            print('--------------------------------')
-            print(f'After update 2: {card.scheduled_date}')
-            print(f'Stability: {card.stability}')
-
-        with freeze_time("2025-07-10 20:41:00+00:00"):
-            card.refresh_from_db()
-            card.update_sm21(rating=1)
-            print('--------------------------------')
-            print(f'After update 2: {card.scheduled_date}')
-            print(f'Stability: {card.stability}')
-   
     def test_review_cards(self):
-        print('====================== Review Cards ======================')
+        from neuro_profile.models import NeuroProfile
+
+        NeuroProfile.objects.get_or_create(user=self.user)
         url = reverse('review-card')
         review_session = {
             'session_time': "00:13:20",
             'review': [{
                 'card_id': card.pk,
                 'deck_id': card.card_deck.pk,
-                'quality': 5
+                'bucket': 4,
             } for card in self.cards]
         }
         response = self.client.put(url, review_session, format='json')
-        self.assertEqual(
-            response.status_code, 
-            status.HTTP_200_OK, 
-            f'Status code error: {response.data}'
-            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, f'Status code error: {response.data}')
+
+        profile = NeuroProfile.objects.get(user=self.user)
+        self.assertTrue(profile.xp > 0, msg=f"User xp didn't increase: {response.data}")
+
         self.assertTrue(
-            get_user_model().objects.get(email=self.user.email).xp > 0,
-            msg=f"User xp didn't increase: {response.data}"
-        )
-        
-        cardss = Card.objects.get(id=self.cards[-1].pk)
-        cardss.last_review_date = timezone.now().isoformat()
-        self.assertTrue(
-            all([card.last_review_date != Card.objects.get(id=card.pk).last_review_date for card in self.cards]),
-            msg=f"Cards didn't successfully update: {response.data}"
+            all(Card.objects.get(id=card.pk).last_reviewed_at is not None for card in self.cards),
+            msg=f"Cards didn't successfully update: {response.data}",
         )
 
         reviewed_cards = ReviewLog.objects.get(user=self.user).cards
-        self.assertTrue(
-            reviewed_cards.count() > 0,
-            msg=f"Cards didn't save in review log: {response.data}"
-        )
-
-        print(response.data)
+        self.assertTrue(reviewed_cards.count() > 0, msg=f"Cards didn't save in review log: {response.data}")
 
 class DeckTestCase(APITestCase):
-    def test_get_decks(self):
-        print("==================== Get Decks ====================")
-        url = reverse('delete-update-cards', args=[self.deck[0].pk])
-        response = self.client.get(url)
-        self.assertEqual(
-            response.status_code, 
-            status.HTTP_200_OK, 
-            msg=f'Status code error: {response.data}'
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.user = get_user_model().objects.create_user(email='bob@gmail.com')
+        cls.deck = Deck.objects.bulk_create([
+            Deck(
+                user=cls.user,
+                title='Test Deck',
+                subject='Test Subject'
+            ),
+            Deck(
+                user=cls.user,
+                title='Test Deck2',
+                subject='Test Subject2'
             )
-        print(response.data)
+        ])
 
-    def test_update_deck(self):
-        print("==================== Update Decks ====================")
-        url = reverse('delete-update-cards', args=[self.deck[1].pk])
-        data = {
-            'title': 'Updated test title'
-        }
-        response = self.client.put(url, data)
-        self.assertNotEqual(self.deck[1].title, response.data['title'])
-        self.assertEqual(self.deck[1].subject, response.data['subject'])
-        print(response.data)
+    def setUp(self):
+        self.client.force_authenticate(user=self.user)
+
+    def test_get_specific_deck_success(self):
+        Card.objects.bulk_create([
+            Card(
+                question='Q1',
+                answer='A1',
+                card_deck=self.deck[0],
+                bucket='bkt_1',
+            ),
+            Card(
+                question='Q2',
+                answer='A2',
+                card_deck=self.deck[0],
+                bucket='bkt_1',
+            ),
+        ])
+        self.deck[0].num_of_cards = 2   
+        self.deck[0].save()
+
+        url = reverse('get-specific-deck', args=[self.deck[0].pk])
+        response = self.client.get(url, format='json')
+
+        expected_keys = {'title', 'subject', 'num_of_cards', 'id'}
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"""========================== Test Get Specific Deck (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}""",
+        )
+        self.assertEqual(
+            set(response.data.keys()),
+            expected_keys,
+            msg=f"""========================== Test Get Specific Deck (TC: Perfect Request) ==========================\n
+            Keys don't match expected response keys: {response.data}""",
+        )
+        self.assertEqual(response.data['id'], self.deck[0].pk)
+        self.assertEqual(response.data['title'], self.deck[0].title)
+        self.assertEqual(response.data['subject'], self.deck[0].subject)
+
+    def test_get_specific_deck_not_found(self):
+        missing_id = max(Deck.objects.values_list('id', flat=True), default=0) + 10
+        url = reverse('get-specific-deck', args=[missing_id])
+        response = self.client.get(url, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            msg=f"""========================== Test Get Specific Deck (TC: Not Found) ==========================\n
+            Status Code Error: {response.data}""",
+        )
+        self.assertEqual(
+            response.data,
+            {"Message": "Deck doesn't exists"},
+            msg=f"""========================== Test Get Specific Deck (TC: Not Found) ==========================\n
+            Response body error: {response.data}""",
+        )
+
+    def test_get_all_decks_success(self):
+        Deck.objects.bulk_create([
+            Deck(user=self.user, title=f'Extra Deck {i}', subject=f'Subject {i}')
+            for i in range(8)
+        ])
+        all_decks = list(Deck.objects.filter(user=self.user))
+        self.assertEqual(len(all_decks), 10)
+
+        expected_counts = {}
+        cards_to_create = []
+        for deck in all_decks:
+            card_count = 2
+            expected_counts[deck.pk] = card_count
+            for j in range(card_count):
+                cards_to_create.append(Card(
+                    question=f'Q-{deck.pk}-{j}',
+                    answer='A',
+                    card_deck=deck,
+                    bucket='bkt_1',
+                ))
+        Card.objects.bulk_create(cards_to_create)
+
+        deck_by_id = {deck.pk: deck for deck in all_decks}
+        url = reverse('get-all-decks')
+        response = self.client.get(url, format='json')
+
+        expected_keys = {'title', 'subject', 'num_of_cards', 'id'}
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"""========================== Test Get All Decks (TC: Perfect Request) ==========================\n
+            Status Code Error: {response.data}""",
+        )
+        self.assertEqual(
+            len(response.data),
+            10,
+            msg=f"""========================== Test Get All Decks (TC: Perfect Request) ==========================\n
+            Expected 10 decks: {response.data}""",
+        )
+        for item in response.data:
+            self.assertEqual(
+                set(item.keys()),
+                expected_keys,
+                msg=f"""========================== Test Get All Decks (TC: Perfect Request) ==========================\n
+                Keys don't match expected response keys: {item}""",
+            )
+            deck = deck_by_id[item['id']]
+            self.assertEqual(item['title'], deck.title)
+            self.assertEqual(item['subject'], deck.subject)
+            self.assertEqual(item['num_of_cards'], expected_counts[item['id']])
+
+    def test_get_all_decks_no_decks_404(self):
+        other_user = get_user_model().objects.create_user(email='nodecks@example.com')
+        self.client.force_authenticate(user=other_user)
+
+        url = reverse('get-all-decks')
+        response = self.client.get(url, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            msg=f"""========================== Test Get All Decks (TC: No Decks) ==========================\n
+            Status Code Error: {response.data}""",
+        )
+        self.assertEqual(
+            response.data,
+            {"Error": "User doesn't have decks"},
+            msg=f"""========================== Test Get All Decks (TC: No Decks) ==========================\n
+            Response body error: {response.data}""",
+        )
 
 class DFBLTestCase(APITestCase):
     def test_doing_feedback_review(self):

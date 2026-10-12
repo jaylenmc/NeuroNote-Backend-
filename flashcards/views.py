@@ -1,52 +1,49 @@
 from neuro_profile.models import NeuroProfile
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
-from .models import Deck, Card, ReviewLog, DoingFeedbackReview
+from .models import Deck, Card, ReviewLog, DoingFeedbackReview, ReviewGroup
 from rest_framework.response import Response
 from rest_framework.exceptions import status
 from .serializers import DeckSerializer, CardSerializer, DoingFeedbackReviewSerializer
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
-from achievements.models import UserAchievements
 from achievements.services import knowledge_engineer, memory_architect, deck_destroyer
-from django.utils import timezone
-from .services import num_of_cards, deck_mastery_progress
-from django.db.models import Q
+from .services import num_of_cards
 from datetime import timedelta
+
 from .serializers import ReviewSessionInput, ReviewItemSerializer, DoingFeedbackReviewModelSerializer
-from datetime import timedelta
-from django.shortcuts import get_object_or_404
+from .srs_service import (
+    apply_study_queue_blacklist,
+    apply_timeout_ratings,
+    bucket_counts_for_user,
+    complete_study_queue,
+    sync_card_review_group_flags,
+    get_active_study_queue,
+    group_queue_complete,
+    refresh_study_queue,
+    sync_group_memberships,
+)
 
 class DeckCollection(APIView):
     permission_classes = [IsAuthenticated]
 
+    # Either get a specific deck by "deck_id" or get all decks from the user
+    # TODO: Make sure client doesn't expect deck mastery progress
+    # TODO: Make sure client doesn't expect neuro profile xp
     def get(self, request, deck_id=None):
         if deck_id:
-            deck = get_object_or_404(Deck, user=request.user, id=deck_id)
-            num_of_cards(deck)
-            new_deck = deck_mastery_progress(request.user, deck.id)
-
-            serialized = DeckSerializer(new_deck).data
-            return Response(serialized, status=status.HTTP_200_OK)
+            deck = Deck.objects.filter(user=request.user, id=deck_id)
+            if deck.exists():
+                deck = deck.first()
+                serialized = DeckSerializer(deck)
+                return Response(serialized.data, status=status.HTTP_200_OK)
+            return Response({"Message": "Deck doesn't exists"}, status=status.HTTP_404_NOT_FOUND)
 
         decks = Deck.objects.filter(user=request.user)
         if decks.exists():
-            updated_decks = []
-            for deck in decks:
-                num_of_cards(deck)
-                new_deck = deck_mastery_progress(request.user, deck.id)
-                updated_decks.append(new_deck)
+            serialized = DeckSerializer(decks, many=True)
 
-            user = get_user_model().objects.filter(email=request.user.email).first()
-            neuro_profile = NeuroProfile.objects.get(user=user)
-            serialized = DeckSerializer(updated_decks, many=True)
-
-            data = {
-                'decks': serialized.data,
-                'xp': neuro_profile.xp
-            }
-
-            return Response(data, status=status.HTTP_200_OK)
+            return Response(serialized.data, status=status.HTTP_200_OK)
         return Response({"Error": "User doesn't have decks"}, status=status.HTTP_404_NOT_FOUND)
     
     def post(self, request):
@@ -98,13 +95,14 @@ class CardCollection(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, deck_id=None):
+        sync_card_review_group_flags(request.user)
         if deck_id:
             cards = Card.objects.filter(card_deck__user=request.user, card_deck__id=deck_id)
-            serialized = CardSerializer(cards, many=True)
+            serialized = CardSerializer(cards, many=True, context={"user": request.user})
             return Response(serialized.data, status=status.HTTP_200_OK)
 
         cards = Card.objects.filter(card_deck__user=request.user)
-        serialized = CardSerializer(cards, many=True)
+        serialized = CardSerializer(cards, many=True, context={"user": request.user})
 
         return Response(serialized.data, status=status.HTTP_200_OK)
 
@@ -115,7 +113,7 @@ class CardCollection(APIView):
 
         serialized = CardSerializer(card_data)
         fixed_serializer = dict(serialized.data)
-        fixed_serializer["last_review_date"] = "None"
+        fixed_serializer["last_review_date"] = None
 
         return Response(fixed_serializer, status=status.HTTP_200_OK)
     
@@ -150,52 +148,104 @@ class CardCollection(APIView):
 @permission_classes([IsAuthenticated])
 def review_card(request):
     card_input_serializer = ReviewSessionInput(data=request.data, context={"method": request.method})
-    if card_input_serializer.is_valid():
-        validated_data = card_input_serializer.validated_data
-        duration = timedelta(
-            hours=validated_data['session_time'].hour, 
-            minutes=validated_data['session_time'].minute,
-            seconds=validated_data['session_time'].second
-            )
-        review_log = ReviewLog.objects.create(user=request.user, session_time=duration)
+    if not card_input_serializer.is_valid():
+        return Response(card_input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        for card_info in validated_data['review']:
-            instance = Card.objects.get(
-                card_deck__user=request.user, 
-                card_deck=card_info["deck_id"],
-                id=card_info["card_id"].id,
-                )
-            
-            card_info['deck_id'] = card_info['deck_id'].id
-            card_info['card_id'] = card_info['card_id'].id
+    validated_data = card_input_serializer.validated_data
+    study_group = None
+    study_group_id = validated_data.get("study_group_id")
+    if study_group_id:
+        study_group = ReviewGroup.objects.filter(
+            id=study_group_id,
+            user=request.user,
+            group_type=ReviewGroup.GroupType.STUDY_QUEUE,
+            status=ReviewGroup.Status.ACTIVE,
+        ).first()
+        if not study_group:
+            return Response({"Message": "Invalid or inactive study_group_id"}, status=status.HTTP_400_BAD_REQUEST)
+        sync_group_memberships(study_group)
 
-            card_input_serializer = ReviewItemSerializer(instance=instance, data=card_info, partial=True, context={"user": request.user})
-            card_input_serializer.is_valid(raise_exception=True)
-            card_input_serializer.save()
+    duration = timedelta(
+        hours=validated_data['session_time'].hour,
+        minutes=validated_data['session_time'].minute,
+        seconds=validated_data['session_time'].second,
+    )
+    review_log = ReviewLog.objects.create(
+        user=request.user,
+        session_time=duration,
+        review_group=study_group,
+    )
 
-            review_log.cards.add(instance)
+    reviewed_ratings = []
+    reviewed_card_ids = []
 
-        return Response({"Message": "Cards successfully reviewed"}, status=status.HTTP_200_OK)
-    return Response(card_input_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    for card_id in validated_data.get("timed_out_card_ids") or []:
+        timeout_ratings = apply_timeout_ratings(request.user, [card_id])
+        reviewed_ratings.extend(timeout_ratings)
+        reviewed_card_ids.extend([card_id for card_id, _ in timeout_ratings])
+
+    for card_info in validated_data['review']:
+        instance = Card.objects.get(
+            card_deck__user=request.user,
+            card_deck=card_info["deck_id"],
+            id=card_info["card_id"].id,
+        )
+
+        payload = {
+            'deck_id': card_info['deck_id'].id,
+            'card_id': card_info['card_id'].id,
+            'bucket': card_info['bucket'],
+        }
+        item_serializer = ReviewItemSerializer(
+            instance=instance,
+            data=payload,
+            partial=True,
+            context={"user": request.user},
+        )
+        item_serializer.is_valid(raise_exception=True)
+        item_serializer.save()
+        reviewed_ratings.append((instance.id, card_info['bucket']))
+        reviewed_card_ids.append(instance.id)
+        review_log.cards.add(instance)
+
+    if study_group:
+        apply_study_queue_blacklist(study_group, reviewed_ratings)
+        sync_group_memberships(study_group)
+        if group_queue_complete(study_group, reviewed_card_ids):
+            complete_study_queue(study_group)
+        else:
+            refresh_study_queue(study_group)
+        sync_card_review_group_flags(request.user)
+
+    return Response({"Message": "Cards successfully reviewed"}, status=status.HTTP_200_OK)
 
 class DueCardsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        filters = Q(card_deck__user=request.user)
+        # due_soon retained for API compatibility; Study Queue uses sync/backfill instead of scheduled_date.
+        group = get_active_study_queue(request.user)
+        bucket_counts = bucket_counts_for_user(request.user)
 
-        if request.query_params.get('due_soon', 'false').lower() == 'true':
-            filters &= Q(scheduled_date__lte=timezone.now() + timedelta(hours=1))
-        else:
-            filters &= Q(scheduled_date__lte=timezone.now())
-          
-        due_cards = Card.objects.filter(filters)
+        if group:
+            sync_group_memberships(group)
+            refresh_study_queue(group)
+            card_ids = group.memberships.values_list("card_id", flat=True)
+            due_cards = Card.objects.filter(id__in=card_ids, card_deck__user=request.user)
+            serialized = CardSerializer(due_cards, many=True, context={"user": request.user})
+            return Response(
+                {
+                    "cards": serialized.data,
+                    "study_group_id": group.id,
+                    "bucket_counts": bucket_counts,
+                },
+                status=status.HTTP_200_OK,
+            )
 
-        if not due_cards:
-            return Response({"Message": "No cards due for review"}, status=status.HTTP_200_OK)
-        
-        serialized = CardSerializer(due_cards, many=True)
-        return Response(serialized.data, status=status.HTTP_200_OK)
+        return Response(
+            {"cards": [], "study_group_id": None, "bucket_counts": bucket_counts},
+            status=status.HTTP_200_OK,
+        )
 
 class DoingFeedbackLoopReview(APIView):
     permission_classes = [IsAuthenticated]
