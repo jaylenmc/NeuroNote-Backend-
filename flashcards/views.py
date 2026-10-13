@@ -7,10 +7,7 @@ from rest_framework.exceptions import status
 from .serializers import DeckSerializer, CardSerializer, DoingFeedbackReviewSerializer
 from rest_framework.permissions import IsAuthenticated
 from django.contrib.auth import get_user_model
-from achievements.services import knowledge_engineer, memory_architect, deck_destroyer
-from .services import num_of_cards
 from datetime import timedelta
-
 from .serializers import ReviewSessionInput, ReviewItemSerializer, DoingFeedbackReviewModelSerializer
 from .srs_service import (
     apply_study_queue_blacklist,
@@ -47,19 +44,13 @@ class DeckCollection(APIView):
         return Response({"Error": "User doesn't have decks"}, status=status.HTTP_404_NOT_FOUND)
     
     def post(self, request):
-        title = request.data.get('title')
         user = get_user_model().objects.filter(email=request.user.email).first()
-        subject = request.data.get('subject')
 
-        if Deck.objects.filter(title__iexact=title).exists():
-            return Response({"Message": "Already have card with title"}, status=status.HTTP_406_NOT_ACCEPTABLE)
-        else:
-            user_collection = Deck.objects.create(title=title, user=user, subject=subject)
-        
-        serialized = DeckSerializer(user_collection)
-        deck_destroyer(user=user)
+        deck_serializer = DeckSerializer(data=request.data, context={"user": user})
+        deck_serializer.is_valid(raise_exception=True)
+        deck_serializer.save()
 
-        return Response(serialized.data, status=status.HTTP_200_OK)
+        return Response(deck_serializer.data, status=status.HTTP_200_OK)
     
     def put(self, request, deck_id):
         deck = Deck.objects.filter(user=request.user, id=deck_id).first()

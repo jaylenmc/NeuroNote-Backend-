@@ -10,13 +10,12 @@ from .study_queue_views import (
 
 urlpatterns = [
     # Deck endpoints
-    path('deck/', views.DeckCollection.as_view(), name='get-all-decks'),
+    path('deck/', views.DeckCollection.as_view(), name='get-post-decks'),
     path('deck/<int:deck_id>/', views.DeckCollection.as_view(), name='get-specific-deck'),
     # Card endpoints
     path('cards/', views.CardCollection.as_view(), name='get-post-cards'),
     path('cards/<int:deck_id>/', views.CardCollection.as_view(), name='get-cards'),
-    path('cards/delete/<int:deck_id>/<int:card_id>/', views.CardCollection.as_view(), name='delete-cards'),
-    path('cards/update/<int:deck_id>/<int:card_id>/', views.CardCollection.as_view(), name="put-card"),
+    path('cards/modify/<int:deck_id>/<int:card_id>/', views.CardCollection.as_view(), name='modify-cards'),
     path('cards/due/', views.DueCardsView.as_view(), name='due-cards'),
     # Study Queue (Phase 1 SRS)
     path('study-queue/current/', StudyQueueCurrentView.as_view(), name='study-queue-current'),

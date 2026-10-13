@@ -1,5 +1,5 @@
 from rest_framework import serializers
-
+from .services import ConflictError
 from .models import Deck, Card, DoingFeedbackReview, ReviewGroup, ReviewGroupCard
 from .srs_service import get_slot_label
 
@@ -38,9 +38,20 @@ class ReviewSessionInput(serializers.Serializer):
 
 
 class DeckSerializer(serializers.ModelSerializer):
+    num_of_cards = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Deck
         fields = ["title", "subject", "num_of_cards", "id"]
+    
+    def validate_title(self, value):
+        if Deck.objects.filter(user=self.context["user"], title__iexact=value).exists():
+            raise ConflictError()
+        return value
+    
+    def create(self, validated_data):
+        deck = Deck.objects.create(user=self.context["user"], **validated_data)
+        return deck
 
 
 class CardSerializer(serializers.ModelSerializer):
