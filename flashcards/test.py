@@ -368,6 +368,235 @@ class DeckTestCase(APITestCase):
             msg=f"Status code error: {response.data}",
         )
 
+    def test_deck_patch_success(self):
+        deck = Deck.objects.create(
+            user=self.user,
+            title='Original Title',
+            subject='Original Subject',
+        )
+        url = reverse('get-specific-deck', args=[deck.pk])
+        data = {
+            'title': 'Updated Title',
+            'subject': 'Updated Subject',
+        }
+        response = self.client.patch(url, data, format='json')
+
+        expected_keys = {'title', 'subject', 'num_of_cards', 'id'}
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}",
+        )
+        self.assertEqual(
+            set(response.data.keys()),
+            expected_keys,
+            msg=f"Keys don't match expected response keys: {response.data}",
+        )
+        pre_response = set(data.values())
+        pre_response.add(deck.pk)
+        self.assertEqual(
+            pre_response,
+            {response.data["title"], response.data["subject"], response.data["id"]},
+            status.HTTP_200_OK
+        )
+
+    def test_deck_patch_not_found(self):
+        missing_id = max(Deck.objects.values_list('id', flat=True), default=0) + 10
+        url = reverse('get-specific-deck', args=[missing_id])
+        response = self.client.patch(
+            url,
+            {'title': 'Title', 'subject': 'Subject'},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            msg=f"Status code error: {response.data}",
+        )
+
+    def test_deck_patch_missing_field(self):
+        deck = Deck.objects.create(
+            user=self.user,
+            title='Patch Deck',
+            subject='Patch Subject',
+        )
+        only_title = {'title': 'Only Title'}
+        url = reverse('get-specific-deck', args=[deck.pk])
+        response = self.client.patch(url, data=only_title, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}",
+        )
+        self.assertEqual(
+            response.data["title"],
+            only_title["title"],
+            msg=f"Title didn't update: {response.data}",
+        )
+        self.assertEqual(
+            response.data["subject"],
+            deck.subject,
+            msg=f"Subject didn't update: {response.data}",
+        )
+        self.assertEqual(
+            response.data["id"],
+            deck.pk,
+            msg=f"ID didn't update: {response.data}",
+        )
+
+    def test_deck_patch_extra_field(self):
+        deck = Deck.objects.create(
+            user=self.user,
+            title='Patch Deck',
+            subject='Patch Subject',
+        )
+        data = {
+            'title': 'Updated Title',
+            'subject': 'Updated Subject',
+            'unexpected_field': 'not allowed',
+        }
+        url = reverse('get-specific-deck', args=[deck.pk])
+        response = self.client.patch(url, data=data, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}",
+        )
+        self.assertEqual(
+            response.data["title"],
+            data["title"],
+            msg=f"Title didn't update: {response.data}",
+        )
+        self.assertEqual(
+            response.data["subject"],
+            data["subject"],
+            msg=f"Subject didn't update: {response.data}",
+        )
+        self.assertEqual(
+            response.data["id"],
+            deck.pk,
+            msg=f"ID didn't update: {response.data}",
+        )
+        self.assertTrue(
+            Deck.objects.filter(user=self.user).count() == 1,
+            msg=f"An extra deck was created: {response.data}",
+        )
+
+    def test_deck_delete_single_success(self):
+        deck = Deck.objects.create(
+            user=self.user,
+            title='Delete Me',
+            subject='Subject',
+        )
+        url = reverse('get-specific-deck', args=[deck.pk])
+        response = self.client.delete(url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}",
+        )
+        self.assertEqual(
+            response.data,
+            {"Message": "Deck successfully deleted"},
+            msg=f"Response body error: {response.data}",
+        )
+        self.assertFalse(
+            Deck.objects.filter(pk=deck.pk).exists(),
+            msg="Deck was not deleted from the database",
+        )
+
+    def test_deck_delete_bulk_success(self):
+        Deck.objects.bulk_create([
+            Deck(user=self.user, title=f'Bulk Deck {i}', subject='Subject')
+            for i in range(3)
+        ])
+        deck_ids = list(
+            Deck.objects.filter(user=self.user).values_list('id', flat=True)
+        )
+
+        url = reverse('get-post-decks')
+        response = self.client.delete(url, {'deck_ids': deck_ids}, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}",
+        )
+        self.assertEqual(
+            response.data,
+            {"Message": "Deck successfully deleted"},
+            msg=f"Response body error: {response.data}",
+        )
+        self.assertFalse(
+            Deck.objects.filter(user=self.user, id__in=deck_ids).exists(),
+            msg="Bulk decks were not deleted from the database",
+        )
+
+    def test_deck_delete_single_not_found(self):
+        missing_id = max(Deck.objects.values_list('id', flat=True), default=0) + 10
+        url = reverse('get-specific-deck', args=[missing_id])
+        response = self.client.delete(url)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            msg=f"Status code error: {response.data}",
+        )
+        self.assertEqual(
+            response.data,
+            {"Message": "Deck does not exist"},
+            msg=f"Response body error: {response.data}",
+        )
+
+    def test_deck_delete_bulk_no_decks_empty_body(self):
+        url = reverse('get-post-decks')
+        response = self.client.delete(url, data={"deck_ids": []}, format='json')
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_404_NOT_FOUND,
+            msg=f"Status code error: {response.data}",
+        )
+        self.assertEqual(
+            response.data,
+            {"Message": "User doesn't have decks"},
+            msg=f"Response body error: {response.data}",
+        )
+
+    def test_deck_delete_bulk_invalid_id_in_list(self):
+        deck_one = Deck.objects.create(
+            user=self.user,
+            title='Bulk One',
+            subject='Subject',
+        )
+        deck_two = Deck.objects.create(
+            user=self.user,
+            title='Bulk Two',
+            subject='Subject',
+        )
+        invalid_id = max(Deck.objects.values_list('id', flat=True), default=0) + 10
+
+        url = reverse('get-post-decks')
+        response = self.client.delete(
+            url,
+            {'deck_ids': [deck_one.pk, deck_two.pk, invalid_id]},
+            format='json',
+        )
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=f"Status code error: {response.data}",
+        )
+        self.assertFalse(
+            Deck.objects.filter(pk__in=[deck_one.pk, deck_two.pk]).exists(),
+            msg="Valid decks should've been deleted",
+        )
+
 class DFBLTestCase(APITestCase):
     def test_doing_feedback_review(self):
         url = reverse('dfbl-review')

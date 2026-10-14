@@ -52,34 +52,38 @@ class DeckCollection(APIView):
 
         return Response(deck_serializer.data, status=status.HTTP_200_OK)
     
-    def put(self, request, deck_id):
-        deck = Deck.objects.filter(user=request.user, id=deck_id).first()
-        if not deck:
+    def patch(self, request, deck_id):
+        deck = Deck.objects.filter(user=request.user, id=deck_id)
+
+        if not deck.exists():
             return Response({"Message": "Deck does not exist"}, status=status.HTTP_404_NOT_FOUND)
         
-        title = request.data.get('title')
-        subject = request.data.get('subject')
+        deck = deck.first()
+        deck_serializer = DeckSerializer(deck, data=request.data, context={"user": request.user})
+        deck_serializer.is_valid(raise_exception=True)
+        deck_serializer.save()
 
-        if title:
-            deck.title = title
-        if subject:
-            deck.subject = subject
-
-        deck.save()
-        serialized = DeckSerializer(deck)
-
-        return Response(serialized.data, status=status.HTTP_200_OK)
+        return Response(deck_serializer.data, status=status.HTTP_200_OK)
     
-    def delete(self, request ,deck_id):
-        id = deck_id
-        user = request.user
-        deck_collection = Deck.objects.filter(user_id=user)
+    # Either delete a specific deck by "deck_id" or delete all decks from the user
+    # TODO: Add bulk delete functionality on client side
+    def delete(self, request, deck_id=None):
+        if deck_id:
+            deck_query_list = Deck.objects.filter(user=request.user, id=deck_id)
+            if not deck_query_list.exists():
+                return Response({"Message": "Deck does not exist"}, status=status.HTTP_404_NOT_FOUND)
+            deck_query_list.delete()
+            return Response({"Message": "Deck successfully deleted"}, status=status.HTTP_200_OK)
 
-        if not deck_collection.filter(id=id).exists():
-            return Response("Deck does not exists", status=status.HTTP_404_NOT_FOUND)
-        deck = deck_collection.filter(id=id).first()
-        deck.delete()
-
+        if not "deck_ids" in request.data:
+            return Response({"Message": "deck_ids is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(request.data.get("deck_ids"), list):
+            return Response({"Message": "deck_ids must be a list"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        deck_query_list = Deck.objects.filter(user=request.user, id__in=request.data.get("deck_ids"))
+        if not deck_query_list.exists():
+            return Response({"Message": "User doesn't have decks"}, status=status.HTTP_404_NOT_FOUND)
+        deck_query_list.delete()
         return Response({"Message": 'Deck successfully deleted'}, status=status.HTTP_200_OK)
     
 class CardCollection(APIView):

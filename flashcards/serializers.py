@@ -52,6 +52,12 @@ class DeckSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         deck = Deck.objects.create(user=self.context["user"], **validated_data)
         return deck
+    
+    def update(self, instance, validated_data):
+        instance.title = validated_data.get("title", instance.title)
+        instance.subject = validated_data.get("subject", instance.subject)
+        instance.save()
+        return instance
 
 
 class CardSerializer(serializers.ModelSerializer):
