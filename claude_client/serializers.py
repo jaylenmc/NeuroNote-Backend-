@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import UPSUserInteraction, DFBLUserInteraction
-from flashcards.models import Card
+from flashcards.models import Card, Deck
 from tests.models import Quiz, Question, Answer, UserAnswer, QuizAttempt
 
 class DFBLSerializer(serializers.Serializer):
@@ -72,3 +72,12 @@ class TestGenerator(serializers.Serializer):
                         is_correct=answer['is_correct']
                     )
         return quiz
+
+class CardGenSerializer(serializers.Serializer):
+    prompt = serializers.CharField(write_only=True)
+    deck_id = serializers.PrimaryKeyRelatedField(queryset=Deck.objects.all())
+
+    def create(self, validated_data):
+        prompt = validated_data['prompt']
+        deck_id = validated_data['deck_id']
+        return prompt, deck_id

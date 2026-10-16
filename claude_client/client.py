@@ -63,7 +63,6 @@ class NoteTakerAi(APIView):
             )
             raw_output = message.content
 
-            # Extract only text blocks
             text_only = " ".join(
                 block.text for block in raw_output if block.type == "text"
             )
@@ -74,7 +73,7 @@ class NoteTakerAi(APIView):
         
 class CardsGen(APIView):
     permission_classes = [IsAuthenticated]
-
+    # TODO: Find another way to parse, relying on specific generated output isn't reliable.
     def post(self, request):
         prompt = request.data.get('prompt')
         deck_id = request.data.get('deck_id')
@@ -118,8 +117,7 @@ class CardsGen(APIView):
                 Card.objects.create(
                     question=card['front'],
                     answer=card['back'],
-                    card_deck=Deck.objects.filter(id=deck_id).first(),
-                    scheduled_date=date.today()
+                    card_deck=Deck.objects.filter(user=request.user, id=deck_id).first()
                 )
 
             return Response({'Cards': cards}, status=status.HTTP_200_OK)
