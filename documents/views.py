@@ -22,7 +22,7 @@ class DocumentView(APIView):
         serializer = DocumentOutputSerializer(documents, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
     
-    def post(self, request):        
+    def post(self, request):  
         serializer = DocumentInputSerializer(data=request.data, context={'user': request.user, 'request': request})
         if serializer.is_valid():
             document = serializer.create(serializer.validated_data)

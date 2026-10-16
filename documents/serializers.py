@@ -3,6 +3,8 @@ from .models import Document
 from django.db import models
 from folders.models import Folder
 from django.utils import timezone
+from resources.models import PinnedResourcesDashboard
+from neuro_profile.models import NeuroProfile
 
 class DocumentInputSerializer(serializers.Serializer):
     title = serializers.CharField(allow_blank=True)
@@ -21,12 +23,15 @@ class DocumentInputSerializer(serializers.Serializer):
     def create(self, data):
         if self.context['request'].method == "POST":
             folder = Folder.objects.get(user=self.context['user'], id=data['folder_id'])
+            neuro_profile = NeuroProfile.objects.get(user=self.context['user'])
+            pr_dashboard = PinnedResourcesDashboard.objects.get(user=neuro_profile)
             document = Document.objects.create(
                 title='Untitled' if not data['title'] else data['title'],
                 notes=data['notes'],
                 folder=folder,
                 published=data['is_published'],
-                tag=data['tag']
+                tag=data['tag'],
+                pr_dashboard=pr_dashboard
             )
             return document
         return document

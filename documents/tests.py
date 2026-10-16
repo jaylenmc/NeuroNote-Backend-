@@ -4,13 +4,16 @@ from folders.models import Folder
 from django.urls import reverse
 from rest_framework import status
 from .models import Document
-
+from neuro_profile.models import NeuroProfile
+from resources.models import PinnedResourcesDashboard
 class DocumentTestCase(APITestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
         User = get_user_model()
         cls.user = User.objects.create(email="bob@test.com")
+        cls.neuro_profile = NeuroProfile.objects.create(user=cls.user)
+        cls.pr_dashboard = PinnedResourcesDashboard.objects.create(user=cls.neuro_profile)
         cls.folder = Folder.objects.create(
             name='test_folder',
             user=cls.user
@@ -20,7 +23,8 @@ class DocumentTestCase(APITestCase):
             title = 'Cultural Studies 8/17/25',
             notes = 'Subjectivity\nIts about how to make money online and come to a conclusion about subjectivity and how us as a collective can collaborate together\nBut actually the aliens are coming to America',
             folder = cls.folder,
-            published = False
+            published = False,
+            pr_dashboard=cls.pr_dashboard
         )
 
     def setUp(self):
