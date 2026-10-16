@@ -1,11 +1,17 @@
-## 🧠 NeuroNote
-NeuroNote is a study platform built with Django REST Framework, designed for students. Unlike many tools that focus only on theory, NeuroNote emphasizes practical, applied learning. It uses active recall and spaced repetition to help students master concepts deeply—while adding a touch of competitiveness to make studying more engaging.
+# NeuroNote
+NeuroNote is a study platform designed for students. Unlike many tools that focus only on theory, NeuroNote emphasizes practical, applied learning. It uses active recall and relative SRS (spaced repetition system) to help students master concepts deeply.
+<img width="1431" height="729" alt="Screenshot 2026-09-29 at 9 03 59 PM" src="https://github.com/user-attachments/assets/d85bc19e-233c-4be4-8399-43345c3f2d98" />
 
-## 🚀 Features <br>
--	User Authentication: Google OAuth2 login <br>
--	Study Tools: Notes, File uploads, quizzes(AI gives explanations on correct and inccorect answers), flashcards(spaced repition based on forgetting curve using SM-2/SM-21 algorithms) <br>
--	Pinned Resources: Save and quickly retrieve key files/links in a study room <br>
--	Gamification: Achievements, mastery badges, flashcard/deck mastery, level system <br>
+## Features
+### User Authentication
+Google OAuth2 login + openID & in app login/signin
+### Study Tools
+**Notes**: Simple document to folder design.
+**File uploads**: In the study room users can upload files or links to their "pinned resources" section.
+**Quizzes**: User can either manually create or generate a quiz; take the quiz either with a timer or not & view the latest test results for review.
+**Flashcards**: Relative SRS with bucket tier system.
+    -    Bucket Tier System -> Cards are categorized within their decks through buckets. Buckets are rankings for the flashcards cards that define if the card (since the latest review) was either a "complete struggle" (bucket 1), "poor" (bucket 2), "good" (bucket 3), "easy" (bucket 4), or if the card was just created it will automatically be placed in bucket 0 as it being a "new card".
+    -    Relative SRS -> 
 
 ## 🛠️ Planned Features <br>
 - 	Collaboration: quiz battles, notes/decks marketplace, group study sessions, leaderboards <br>
