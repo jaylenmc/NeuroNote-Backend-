@@ -35,6 +35,9 @@ Google OAuth2 login + openID & in app login/signin
 **Analytics**: <br>
 *  Show progression of cards/quizzes and specific subjects, and record study time in total and each deck/subject. <br>
 
+**Payment**: <br>
+  * Integrate stripe for payment once a bulk of the features are built and ready to use
+
 **Achievements**: <br>
 *  Undecided amount of achievements but they will be earned through studying with quizzes, flashcards, general study methods, and login streaks <br>
 
