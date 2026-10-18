@@ -23,20 +23,26 @@ Google OAuth2 login + openID & in app login/signin
 1.    Flashchcard Study Methods: <br>
 *    Exam -> The Exam group will create a schedule on a calendar from the day of until the date of the exam. The days will be populated with study material such as quizzes and flashcard study sessions. To help with properly scheduling the days with enough and proper material, AI (anthropic) will be used. The groups of cards chosen for the study sessions in the respective days will be chosen based on a dynamic forgetting curve algorithm. To make this possible the flashcards will have to keep the last reviewed date attribute. The exam group will also apply a scheduled date for when the cards are supposed to be reviewed. Cards in this group should be labeld as “Reserved” meaning they can only be studied on their specified date. <br>
 *    Time Crunch -> The user will be asked how much time they currently have to study and based on that time there will be x amount of temporary groups created full of cards that the user would be able to study in that specified time frame back to back with the option to quit after each group has been completed (the cards will still use the probability feature of being in one of those groups). <br>
-**Analytics**: Show progression of cards/quizzes and specific subjects, and record study time in total and each deck/subject. <br>
 2.    General Study Methods: <br>
 *    Research & Synthesis -> Practice searching for information. The user will use the question on the flashcard as the purpose of their search queries. They will then try searching for information with their query, AI will grade the quality of it based on specific or too broad it is, if its valid then the search will go through and articles will be returned that the user can choose from. After each article they visit they will summarize what they have read. Eventually the user can choose to come to a conclusion where they will then write an answer to the question on the flashcard.
      -    The cards used will be different from the traditional flashcards that hold a question and answer. These will be specifically for Research & Synthesis where they will only have a question. To know if these cards have been reviewed or not they will hold review history. <br>
-3.  Achievements: <br>
+* IDE for practical programming studying
+* Canvas allowing the user to write when solving math problems
+     
+**Mind Map**: <br>
+*  Allows for visual users to get more out of NeuroNote <br>
+
+**Analytics**: <br>
+*  Show progression of cards/quizzes and specific subjects, and record study time in total and each deck/subject. <br>
+
+**Achievements**: <br>
 *  Undecided amount of achievements but they will be earned through studying with quizzes, flashcards, general study methods, and login streaks <br>
-4.  Improved Note Taking: <br>
+
+**Improved Note Taking**: <br>
 *  Auto save
 *  Image resizing
-*  Improved tables (adding/removing rows and columns, and resizing)
-4.  Mind Map
-*  Allows for visual users to get more out of NeuroNote
-5.  More Practical Study Methods:
-*  Include an IDE for programming and canvas for math
+*  Improved tables (adding/removing rows and columns, and resizing) <br>
+
 
 ## Tech Stack <br>
 *    Backend: Django, Django REST Framework <br>
