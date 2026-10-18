@@ -27,16 +27,16 @@ Google OAuth2 login + openID & in app login/signin
 2.    General Study Methods: <br>
 *    Research & Synthesis -> Practice searching for information. The user will use the question on the flashcard as the purpose of their search queries. They will then try searching for information with their query, AI will grade the quality of it based on specific or too broad it is, if its valid then the search will go through and articles will be returned that the user can choose from. After each article they visit they will summarize what they have read. Eventually the user can choose to come to a conclusion where they will then write an answer to the question on the flashcard.
      -    The cards used will be different from the traditional flashcards that hold a question and answer. These will be specifically for Research & Synthesis where they will only have a question. To know if these cards have been reviewed or not they will hold review history. <br>
-**Achievements**: <br>
-* Undecided amount of achievements but they will be earned through studying with quizzes, flashcards, general study methods, and login streaks <br>
-**Improved Note Taking**: <br>
-* Auto save
-* Image resizing
-* Improved tables (adding/removing rows and columns, and resizing)
-**Mind Map**
-* Allows for visual users to get more out of NeuroNote
-**More Practical Study Methods**:
-* Include an IDE for programming and canvas for math
+3.  Achievements: <br>
+*  Undecided amount of achievements but they will be earned through studying with quizzes, flashcards, general study methods, and login streaks <br>
+4.  Improved Note Taking: <br>
+*  Auto save
+*  Image resizing
+*  Improved tables (adding/removing rows and columns, and resizing)
+4.  Mind Map
+*  Allows for visual users to get more out of NeuroNote
+5.  More Practical Study Methods:
+*  Include an IDE for programming and canvas for math
 
 ## Tech Stack <br>
 *    Backend: Django, Django REST Framework <br>
