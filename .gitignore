@@ -40,7 +40,7 @@ Thumbs.db
 .env.*.local
 
 # Venv
-neurovenv/
+NeuroNoteVenv/
 
 # Replacements.txt
 replacements.txt

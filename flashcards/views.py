@@ -44,9 +44,7 @@ class DeckCollection(APIView):
         return Response({"Error": "User doesn't have decks"}, status=status.HTTP_404_NOT_FOUND)
     
     def post(self, request):
-        user = get_user_model().objects.filter(email=request.user.email).first()
-
-        deck_serializer = DeckSerializer(data=request.data, context={"user": user})
+        deck_serializer = DeckSerializer(data=request.data, context={"user": request.user})
         deck_serializer.is_valid(raise_exception=True)
         deck_serializer.save()
 

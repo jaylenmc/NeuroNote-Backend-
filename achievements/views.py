@@ -7,6 +7,8 @@ from .models import UserAchievements, Achievements
 from .serializers import AchievementsSerializer, UserAcheivementsSerializer
 from rest_framework.permissions import IsAuthenticated
 
+# Not currently used
+# TODO: Update this view and create a new achievements system
 class AchievementsView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self, request):

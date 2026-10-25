@@ -1,7 +1,16 @@
 from rest_framework import serializers
 from .models import UPSUserInteraction, DFBLUserInteraction
 from flashcards.models import Card, Deck
+from flashcards.serializers import CardSerializer
 from tests.models import Quiz, Question, Answer, UserAnswer, QuizAttempt
+import anthropic
+import os
+from pydantic import BaseModel
+from .services import ClaudeException
+
+client = anthropic.Anthropic(
+    api_key=os.environ.get("ANTHROPIC_KEY")
+) 
 
 class DFBLSerializer(serializers.Serializer):
     user_answer = serializers.CharField()
@@ -73,11 +82,44 @@ class TestGenerator(serializers.Serializer):
                     )
         return quiz
 
+class CardKeysSchema(BaseModel):
+    question: str
+    answer: str
+
+class CardSchema(BaseModel):
+    cards: list[CardKeysSchema]
+
 class CardGenSerializer(serializers.Serializer):
+    # Input fields
     prompt = serializers.CharField(write_only=True)
-    deck_id = serializers.PrimaryKeyRelatedField(queryset=Deck.objects.all())
+    deck_id = serializers.PrimaryKeyRelatedField(queryset=Deck.objects.all(), write_only=True)
+    num_of_cards = serializers.IntegerField(write_only=True)
+    # Output fields
+    cards = CardSerializer(many=True, read_only=True)
 
     def create(self, validated_data):
-        prompt = validated_data['prompt']
-        deck_id = validated_data['deck_id']
-        return prompt, deck_id
+        response = client.messages.parse(
+            model="claude-haiku-5-5",
+            system=f"Generate {validated_data['num_of_cards']} flashcards.",
+            max_tokens=1000,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": validated_data['prompt']}]
+                }
+            ],
+            output_format=CardSchema
+        )
+        if response.stop_reason in {"refusal", "max_tokens"}:
+            raise ClaudeException(response.stop_reason)
+
+        cards = {'cards': []}
+        deck = Deck.objects.get(user=self.context['user'], id=validated_data['deck_id'].id)
+        for card in response.parsed_output.cards:
+            created_card = Card.objects.create(
+                card_deck=deck,
+                question=card.question,
+                answer=card.answer
+            )
+            cards['cards'].append(created_card)
+        return cards

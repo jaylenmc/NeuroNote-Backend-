@@ -1,24 +1,16 @@
 import re
 import json
+from anthropic.types import code_execution_result_block
+from rest_framework.exceptions import APIException
 
-def clean_claude_response(content):
-    if isinstance(content, list) and hasattr(content[0], 'text'):
-        raw_text = content[0].text
-    else:
-        return {"Error": "Unsupported content format"}
+class ClaudeException(APIException):
+    status_code = 502
+    default_detail = "stop reason error"
+    detail_code = "claude_stop_reason"
 
-    # Extract JSON code blocks
-    json_blocks = re.findall(r'```json\n(.*?)\n```', raw_text, re.DOTALL)
-
-    # Parse each block
-    parsed = []
-    for block in json_blocks:
-        try:
-            parsed.append(json.loads(block))
-        except json.JSONDecodeError as e:
-            print(f"Failed to parse: {e}\n{block}")
-    
-    return parsed
+    def __init__(self, stop_reason: str, detail=None, code=None):
+        self.stop_reason = stop_reason
+        super().__init__(stop_reason, code)
 
 def validate_dfbl_response(response):
     try:

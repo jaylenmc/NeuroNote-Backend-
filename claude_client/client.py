@@ -1,4 +1,3 @@
-import anthropic
 import re
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.views import APIView
@@ -7,125 +6,22 @@ from rest_framework.response import Response
 from rest_framework import status
 from flashcards.models import Card, Deck
 from datetime import date
-from .services import clean_claude_response, validate_dfbl_response, validate_quiz_generation
+from .services import validate_dfbl_response, validate_quiz_generation
 from rest_framework.decorators import permission_classes, api_view
-import json
-import tiktoken
 import os
-from .models import DFBLUserInteraction, UPSUserInteraction
-from .serializers import DFBLSerializer, TestGenerator
+from .models import DFBLUserInteraction
+from .serializers import DFBLSerializer, TestGenerator, CardGenSerializer
 from tests.serializers import QuizSerilizer
 
-client = anthropic.Anthropic(
-    api_key=os.environ.get("ANTHROPIC_KEY")
-) 
-
-def thinker_ai(prompt: str, user: object):
-    if user.token_amount <= 0:
-        return f"Not enough tokens"
-
-    message = client.messages.create(
-    model="claude-3-7-sonnet-20250219",
-    max_tokens=user.token_amount,
-    temperature=1,
-    system="You are a educational tutor, only asnwer to educational questions.",
-    messages=[
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": prompt}]
-            }
-        ]
-    )
-    
-    user.token_amount -= (message.usage.output_tokens + message.usage.input_tokens)
-    user.save()
-   
-    return message.content
-
-class NoteTakerAi(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        prompt = request.data.get('prompt')
-
-        try:
-            message = client.messages.create(
-                model="claude-3-haiku-20240307",  # Using the free model
-                max_tokens=1000,
-                temperature=0.7,
-                system="You are a educational tutor. Provide clear and concise answers.",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [{"type": "text", "text": prompt}]
-                    }
-                ]
-            )
-            raw_output = message.content
-
-            text_only = " ".join(
-                block.text for block in raw_output if block.type == "text"
-            )
-    
-            return Response({'Message': text_only}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({'Error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
 class CardsGen(APIView):
     permission_classes = [IsAuthenticated]
-    # TODO: Find another way to parse, relying on specific generated output isn't reliable.
     def post(self, request):
-        prompt = request.data.get('prompt')
-        deck_id = request.data.get('deck_id')
-        if not prompt:
-            return Response({'Error': 'Prompt is required'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = CardGenSerializer(data=request.data, context={"user": request.user})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-        try:
-            message = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=10000,
-                temperature=0.7,
-                system="Generate a list of flashcards based on the prompt. Each card should be separated by '## Card', and each card should follow this format:\n## Card\n**Front**: <front>\n**Back**: <back>. Just respond with the flashcards, no other text.",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [{"type": "text", "text": prompt}]
-                    }
-                ]
-            )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-            raw_output = message.content
-            text_output = "".join(
-                block.text for block in raw_output if getattr(block, 'type', "") == 'text'
-            )
-
-
-            cards = []
-            pattern = re.compile(
-                r"## Card\s*\d*\s*\*\*Front\*\*:\s*(.+?)\s*\n\*\*Back\*\*:\s*((?:.|\n)*?)(?=\n## Card|\Z)",
-                re.MULTILINE
-            )
-            matches = pattern.findall(text_output)
-
-            for front, back in matches:
-                cards.append({
-                    'front': front.strip(),
-                    'back': back.strip()
-                })
-            
-            for card in cards:
-                Card.objects.create(
-                    question=card['front'],
-                    answer=card['back'],
-                    card_deck=Deck.objects.filter(user=request.user, id=deck_id).first()
-                )
-
-            return Response({'Cards': cards}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({'Error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
-
-        
 def cards_to_quiz(user_answers):
     if not user_answers:
         return {'Error': 'No data provided'}
