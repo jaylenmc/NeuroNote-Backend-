@@ -8,6 +8,7 @@ __pycache__/
 *.pot
 *.pyc
 db.sqlite3
+db,sqlite3
 media/
 staticfiles/
 
@@ -48,3 +49,10 @@ replacements.txt
 # Media
 media/
 test_media/
+
+# Custom certificates
+cert.pem
+key.pem
+
+# Version
+.python-version
