@@ -5,8 +5,8 @@ from flashcards.serializers import CardSerializer
 from tests.models import Quiz, Question, Answer, UserAnswer, QuizAttempt
 import anthropic
 import os
-from pydantic import BaseModel
-from .services import ClaudeException
+import pydantic
+from .services import ClaudeException, PydanticValidationError
 
 client = anthropic.Anthropic(
     api_key=os.environ.get("ANTHROPIC_KEY")
@@ -82,11 +82,11 @@ class TestGenerator(serializers.Serializer):
                     )
         return quiz
 
-class CardKeysSchema(BaseModel):
+class CardKeysSchema(pydantic.BaseModel):
     question: str
     answer: str
 
-class CardSchema(BaseModel):
+class CardSchema(pydantic.BaseModel):
     cards: list[CardKeysSchema]
 
 class CardGenSerializer(serializers.Serializer):
@@ -98,28 +98,47 @@ class CardGenSerializer(serializers.Serializer):
     cards = CardSerializer(many=True, read_only=True)
 
     def create(self, validated_data):
-        response = client.messages.parse(
-            model="claude-haiku-5-5",
-            system=f"Generate {validated_data['num_of_cards']} flashcards.",
-            max_tokens=1000,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [{"type": "text", "text": validated_data['prompt']}]
-                }
-            ],
-            output_format=CardSchema
-        )
-        if response.stop_reason in {"refusal", "max_tokens"}:
-            raise ClaudeException(response.stop_reason)
-
-        cards = {'cards': []}
-        deck = Deck.objects.get(user=self.context['user'], id=validated_data['deck_id'].id)
-        for card in response.parsed_output.cards:
-            created_card = Card.objects.create(
-                card_deck=deck,
-                question=card.question,
-                answer=card.answer
+        if self.context.get('token_check') == 'true':
+            print(f"Generating {validated_data['num_of_cards']} flashcards.")
+            response = client.messages.count_tokens(
+                model="claude-haiku-5-5",
+                system=f"Generate {validated_data['num_of_cards']} flashcards.",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"type": "text", "text": validated_data['prompt']}]
+                    }
+                ],
+                output_format=CardSchema
             )
-            cards['cards'].append(created_card)
-        return cards
+            return response.json()
+        else:
+            try:
+                response = client.messages.parse(
+                    model="claude-haiku-5-5",
+                    system=f"Generate {validated_data['num_of_cards']} flashcards.",
+                    max_tokens=3000,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [{"type": "text", "text": validated_data['prompt']}]
+                        }
+                    ],
+                    output_format=CardSchema
+                )
+            except pydantic.ValidationError as e:
+                raise PydanticValidationError(e)
+
+            if response.stop_reason in {"refusal", "max_tokens"}:
+                raise ClaudeException(response.stop_reason)
+
+            cards = {'cards': []}
+            deck = Deck.objects.get(user=self.context['user'], id=validated_data['deck_id'].id)
+            for card in response.parsed_output.cards:
+                created_card = Card.objects.create(
+                    card_deck=deck,
+                    question=card.question,
+                    answer=card.answer
+                )
+                cards['cards'].append(created_card)
+            return cards

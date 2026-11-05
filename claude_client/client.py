@@ -12,15 +12,23 @@ import os
 from .models import DFBLUserInteraction
 from .serializers import DFBLSerializer, TestGenerator, CardGenSerializer
 from tests.serializers import QuizSerilizer
+import anthropic
+
+client = anthropic.Anthropic(
+    api_key=os.environ.get("ANTHROPIC_KEY")
+) 
 
 class CardsGen(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request):
-        serializer = CardGenSerializer(data=request.data, context={"user": request.user})
+        serializer = CardGenSerializer(data=request.data, context={"user": request.user, "token_check": request.query_params.get('token_check')})
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        serializer_save = serializer.save()
+        
+        if request.query_params.get('token_check') == 'true':
+            return Response(serializer_save, status=status.HTTP_200_OK)
+        else:
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
 def cards_to_quiz(user_answers):
     if not user_answers:

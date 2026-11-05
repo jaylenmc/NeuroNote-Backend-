@@ -12,6 +12,15 @@ class ClaudeException(APIException):
         self.stop_reason = stop_reason
         super().__init__(stop_reason, code)
 
+class PydanticValidationError(APIException):
+    status_code = 502
+    default_detail = "pydantic validation error"
+    detail_code = "pydantic_validation_error"
+
+    def __init__(self, validation_error: str, detail=None, code=None):
+        self.validation_error = validation_error
+        super().__init__(validation_error, code)
+
 def validate_dfbl_response(response):
     try:
         response = response.strip()
